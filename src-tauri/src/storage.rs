@@ -245,41 +245,35 @@ impl Storage {
         let conn = self.conn.lock().unwrap();
         let sort_clause = order_by.unwrap_or_default().to_sql();
     
-        let mut sql = String::new();
-        let mut params_vec: Vec<String> = Vec::new();
-    
-        match (parent_id, item_type_filter) {
-            (Some(pid), Some(filter)) => {
-                sql = format!(
-                    "SELECT * FROM vault_items WHERE parent_id = ?1 AND (item_type LIKE ?2 || '%' OR (item_type = 'folder' AND folder_type = ?3)) {}",
-                    sort_clause
-                );
-                params_vec.push(pid);
-                params_vec.push(filter.clone());
-                params_vec.push(filter);
-            }
-            (Some(pid), None) => {
-                sql = format!("SELECT * FROM vault_items WHERE parent_id = ?1 {}", sort_clause);
-                params_vec.push(pid);
-            }
-            (None, Some(filter)) => {
-                sql = format!(
-                    "SELECT * FROM vault_items WHERE parent_id IS NULL AND (item_type LIKE ?1 || '%' OR (item_type = 'folder' AND folder_type = ?2)) {}",
-                    sort_clause
-                );
-                params_vec.push(filter.clone());
-                params_vec.push(filter);
-            }
-            (None, None) => {
-                sql = format!("SELECT * FROM vault_items WHERE parent_id IS NULL {}", sort_clause);
-            }
-        }
-    
-        let mut stmt = conn.prepare(&sql)?;
-        let item_iter = stmt.query_map(rusqlite::params_from_iter(params_vec.iter()), |row| Self::row_to_vault_item(row, crypto))?;
-        let items: Vec<VaultItem> = item_iter.collect::<RusqliteResult<_>>()?;
+        let all_items_result: RusqliteResult<Vec<VaultItem>> = if let Some(pid) = parent_id {
+            let sql = format!("SELECT * FROM vault_items WHERE parent_id = ?1 {}", sort_clause);
+            let mut stmt = conn.prepare(&sql)?;
+            let item_iter = stmt.query_map(params![pid], |row| Self::row_to_vault_item(row, crypto))?;
+            item_iter.collect()
+        } else {
+            let sql = format!("SELECT * FROM vault_items WHERE parent_id IS NULL {}", sort_clause);
+            let mut stmt = conn.prepare(&sql)?;
+            let item_iter = stmt.query_map(params![], |row| Self::row_to_vault_item(row, crypto))?;
+            item_iter.collect()
+        };
         
-        Ok(items)
+        let all_items = all_items_result?;
+    
+        if let Some(filter) = item_type_filter {
+            let filtered_items = all_items
+                .into_iter()
+                .filter(|item| {
+                    if item.item_type == "folder" {
+                        item.folder_type.as_deref() == Some(&filter)
+                    } else {
+                        item.item_type.starts_with(&filter)
+                    }
+                })
+                .collect();
+            Ok(filtered_items)
+        } else {
+            Ok(all_items)
+        }
     }
     
     pub fn get_all_items_recursive(&self, crypto: &Crypto) -> Result<Vec<VaultItem>> {
@@ -520,42 +514,6 @@ impl Storage {
         &self.vault_path
     }
 
-    pub fn get_connection(&self) -> Result<Connection> {
-        let db_path = self.vault_path.join("vault.db");
-        Connection::open(&db_path).map_err(Error::from)
-    }
-
-    pub fn add_item_with_transaction(&self, item: &VaultItem, crypto: &Crypto, tx: &rusqlite::Transaction) -> Result<()> {
-        let tags_json = serde_json::to_string(&item.tags)?;
-
-        let encrypted_name = crypto.encrypt(item.name.as_bytes())?;
-        let encrypted_item_type = crypto.encrypt(item.item_type.as_bytes())?;
-        let encrypted_data_path = crypto.encrypt(item.data_path.as_bytes())?;
-        let encrypted_tags = crypto.encrypt(tags_json.as_bytes())?;
-        let encrypted_folder_type = match &item.folder_type {
-            Some(ft) => Some(crypto.encrypt(ft.as_bytes())?),
-            None => None,
-        };
-        let encrypted_created_at = crypto.encrypt(item.created_at.to_rfc3339().as_bytes())?;
-        let encrypted_updated_at = crypto.encrypt(item.updated_at.to_rfc3339().as_bytes())?;
-
-        tx.execute(
-            "INSERT INTO vault_items (id, parent_id, name, item_type, data_path, folder_type, tags, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![
-                item.id,
-                item.parent_id,
-                encrypted_name,
-                encrypted_item_type,
-                encrypted_data_path,
-                encrypted_folder_type,
-                encrypted_tags,
-                encrypted_created_at,
-                encrypted_updated_at,
-            ],
-        )?;
-        Ok(())
-    }
-
     pub fn rename_tag_in_all_items(&self, old_tag: &str, new_tag: &str, crypto: &Crypto) -> Result<()> {
         info!("Attempting to rename tag: '{}' to '{}'", old_tag, new_tag);
         let mut items = self.get_all_items_recursive(crypto)?;
@@ -642,228 +600,5 @@ impl Storage {
         )?;
 
         Ok(())
-    }
-
-    pub fn get_item_count(&self) -> Result<usize> {
-        let conn = self.conn.lock().unwrap();
-        let count: i64 = conn.query_row("SELECT COUNT(*) FROM vault_items", [], |row| row.get(0))?;
-        Ok(count as usize)
-    }
-
-    fn extract_url_from_content(content: &str) -> Option<String> {
-        // Look for URL: pattern in content
-        if let Some(url_start) = content.find("URL:") {
-            let after_url = &content[url_start + 4..];
-            if let Some(end_line) = after_url.find('\n') {
-                let url = after_url[..end_line].trim();
-                if !url.is_empty() {
-                    return Some(url.to_string());
-                }
-            } else {
-                let url = after_url.trim();
-                if !url.is_empty() {
-                    return Some(url.to_string());
-                }
-            }
-        }
-        None
-    }
-
-    fn normalize_url_for_search(url: &str) -> String {
-        // Remove protocol and common prefixes for better matching
-        url.to_lowercase()
-            .replace("https://", "")
-            .replace("http://", "")
-            .replace("www.", "")
-            .trim_matches('/')
-            .to_string()
-    }
-
-    pub fn search_items(&self, query: String, crypto: &Crypto) -> Result<Vec<VaultItem>> {
-        let conn = self.conn.lock().unwrap();
-        
-        // For very short queries, use a more targeted approach
-        if query.len() < 3 {
-            // Only search in names for short queries to avoid performance issues
-            let all_items = self.get_all_items_recursive(crypto)?;
-            let matching_items: Vec<VaultItem> = all_items
-                .into_iter()
-                .filter(|item| item.name.to_lowercase().contains(&query.to_lowercase()))
-                .collect();
-            return Ok(matching_items);
-        }
-        
-        // For longer queries, we can be more thorough
-        let all_items = self.get_all_items_recursive(crypto)?;
-        let mut matching_items = Vec::new();
-        let query_lower = query.to_lowercase();
-        
-        for item in all_items {
-            let mut score = 0;
-            
-            // Check name match (highest priority)
-            if item.name.to_lowercase().contains(&query_lower) {
-                score += 100;
-                if item.name.to_lowercase() == query_lower {
-                    score += 50; // Exact match bonus
-                }
-            }
-            
-            // Check tags match (medium priority)
-            if item.tags.iter().any(|tag| tag.to_lowercase().contains(&query_lower)) {
-                score += 30;
-            }
-            
-            // Check URL in content (high priority for website searches)
-            if !item.data_path.is_empty() {
-                if let Ok(content) = self.read_encrypted_file(&item.data_path, crypto) {
-                    if let Ok(content_str) = String::from_utf8(content) {
-                        let content_lower = content_str.to_lowercase();
-                        
-                        // Extract and check URL specifically
-                        if let Some(url) = Self::extract_url_from_content(&content_str) {
-                            let normalized_url = Self::normalize_url_for_search(&url);
-                            let normalized_query = Self::normalize_url_for_search(&query);
-                            
-                            // Check if query matches the URL
-                            if normalized_url.contains(&normalized_query) {
-                                score += 80; // High priority for URL matches
-                                
-                                // Bonus for exact domain matches
-                                if normalized_url == normalized_query {
-                                    score += 50; // Exact domain match
-                                } else if normalized_url.starts_with(&normalized_query) {
-                                    score += 30; // Domain starts with query
-                                }
-                            }
-                        }
-                        
-                        // General content search (lower priority, only if no other matches)
-                        if score == 0 && query.len() >= 4 {
-                            if content_lower.contains(&query_lower) {
-                                score += 10;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            if score > 0 {
-                matching_items.push((item, score));
-            }
-        }
-        
-        // Sort by score (highest first), then by name
-        matching_items.sort_by(|(a, score_a), (b, score_b)| {
-            score_b.cmp(score_a).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-        });
-        
-        // Return just the items, not the scores
-        Ok(matching_items.into_iter().map(|(item, _)| item).collect())
-    }
-
-    pub fn fast_search_items(&self, query: String, preloaded_items: &[VaultItem], crypto: &Crypto) -> Result<Vec<VaultItem>> {
-        // For very short queries, use a more targeted approach
-        if query.len() < 3 {
-            let matching_items: Vec<VaultItem> = preloaded_items
-                .iter()
-                .filter(|item| item.name.to_lowercase().contains(&query.to_lowercase()))
-                .cloned()
-                .collect();
-            return Ok(matching_items);
-        }
-        
-        let mut matching_items = Vec::new();
-        let query_lower = query.to_lowercase();
-        
-        for item in preloaded_items {
-            let mut score = 0;
-            
-            // Check name match (highest priority)
-            if item.name.to_lowercase().contains(&query_lower) {
-                score += 100;
-                if item.name.to_lowercase() == query_lower {
-                    score += 50; // Exact match bonus
-                }
-            }
-            
-            // Check tags match (medium priority)
-            if item.tags.iter().any(|tag| tag.to_lowercase().contains(&query_lower)) {
-                score += 30;
-            }
-            
-            // Check URL in content (high priority for website searches)
-            if !item.data_path.is_empty() {
-                // For preloaded items, we need to decrypt content on demand
-                // But this is much faster since we only do it for items that match name/tags
-                if let Ok(content) = self.read_encrypted_file(&item.data_path, crypto) {
-                    if let Ok(content_str) = String::from_utf8(content) {
-                        let content_lower = content_str.to_lowercase();
-                        
-                        // Extract and check URL specifically
-                        if let Some(url) = Self::extract_url_from_content(&content_str) {
-                            let normalized_url = Self::normalize_url_for_search(&url);
-                            let normalized_query = Self::normalize_url_for_search(&query);
-                            
-                            // Check if query matches the URL
-                            if normalized_url.contains(&normalized_query) {
-                                score += 80; // High priority for URL matches
-                                
-                                // Bonus for exact domain matches
-                                if normalized_url == normalized_query {
-                                    score += 50; // Exact domain match
-                                } else if normalized_url.starts_with(&normalized_query) {
-                                    score += 30; // Domain starts with query
-                                }
-                            }
-                        }
-                        
-                        // General content search (lower priority, only if no other matches)
-                        if score == 0 && query.len() >= 4 {
-                            if content_lower.contains(&query_lower) {
-                                score += 10;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            if score > 0 {
-                matching_items.push((item.clone(), score));
-            }
-        }
-        
-        // Sort by score (highest first), then by name
-        matching_items.sort_by(|(a, score_a), (b, score_b)| {
-            score_b.cmp(score_a).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-        });
-        
-        // Return just the items, not the scores
-        Ok(matching_items.into_iter().map(|(item, _)| item).collect())
-    }
-}
-
-pub struct VaultState {
-    pub storage: Mutex<Storage>,
-    pub crypto: Mutex<crate::crypto::Crypto>,
-}
-
-impl VaultState {
-    pub fn new() -> Self {
-        let vault_path = std::env::var("VAULT_PATH")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-                path.push("fetch-vault");
-                path
-            });
-        
-        let storage = Storage::new(vault_path).expect("Failed to initialize storage");
-        let crypto = crate::crypto::Crypto::new();
-        
-        Self {
-            storage: Mutex::new(storage),
-            crypto: Mutex::new(crypto),
-        }
     }
 }

@@ -1,6 +1,0 @@
-name,content,parent_folder,tags,item_type
-My Password,secretpass123,Passwords,password secure,text
-Work Notes,Meeting notes for project X,Work,notes meeting,text
-Personal Folder,,,,folder
-Shopping List,Milk\nEggs\nBread,Personal Folder,shopping todo,text
-Bank Info,Account: 123456,Personal Folder/Finance,banking secure,text 
