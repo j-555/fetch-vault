@@ -29,9 +29,9 @@ impl KeyDerivationStrength {
     fn get_params(&self) -> Result<Params> {
         let mut params = ParamsBuilder::new();
         let builder = match self {
-            KeyDerivationStrength::Fast => params.m_cost(256 * 1024).t_cost(2).p_cost(2), // Increased from 32MB to 256MB
-            KeyDerivationStrength::Recommended => params.m_cost(512 * 1024).t_cost(3).p_cost(4), // Increased from 64MB to 512MB
-            KeyDerivationStrength::Paranoid => params.m_cost(1024 * 1024).t_cost(4).p_cost(4), // Increased from 128MB to 1GB
+            KeyDerivationStrength::Fast => params.m_cost(64 * 1024).t_cost(1).p_cost(1), 
+            KeyDerivationStrength::Recommended => params.m_cost(128 * 1024).t_cost(2).p_cost(2), 
+            KeyDerivationStrength::Paranoid => params.m_cost(256 * 1024).t_cost(3).p_cost(3),
         };
 
         builder
