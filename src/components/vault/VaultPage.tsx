@@ -32,11 +32,7 @@ export function VaultPage() {
 
   const loadAllItems = async () => {
     try {
-      const fetchedItemsRaw = await invoke<RawBackendItem[]>('get_vault_items', {
-        parentId: null,
-        itemType: null,
-        orderBy: sortOrder.value,
-      });
+      const fetchedItemsRaw = await invoke<RawBackendItem[]>('get_all_vault_items');
       const transformedItems: VaultItem[] = fetchedItemsRaw.map(rawItem => ({
         ...rawItem,
         item_type: rawItem.type,
@@ -45,8 +41,10 @@ export function VaultPage() {
         updated_at: new Date(rawItem.updated_at).getTime(),
       }));
       setAllItems(transformedItems);
+      return transformedItems;
     } catch (err) {
-      // ignore for now
+      console.error('Error loading all items:', err);
+      return [];
     }
   };
 
@@ -54,19 +52,24 @@ export function VaultPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const fetchedItemsRaw = await invoke<RawBackendItem[]>('get_vault_items', {
-        parentId: currentFolderId,
-        itemType: selectedType === 'all' ? null : selectedType,
-        orderBy: sortOrder.value,
+      const allItemsData = await loadAllItems();
+      // Only filter for display, do not call get_vault_items again
+      // Add this log to inspect the field names
+      console.log('All items:', allItemsData);
+      const filteredItems = allItemsData.filter(item => {
+        if (currentFolderId && item.parent_id !== currentFolderId) return false;
+        if (!currentFolderId && item.parent_id !== null) return false;
+        if (selectedType !== 'all' && item.type !== selectedType) return false;
+        if (searchQuery.trim() !== '') {
+          const q = searchQuery.toLowerCase();
+          return (
+            item.name.toLowerCase().includes(q) ||
+            (item.tags && item.tags.some(tag => tag.toLowerCase().includes(q)))
+          );
+        }
+        return true;
       });
-      const transformedItems: VaultItem[] = fetchedItemsRaw.map(rawItem => ({
-        ...rawItem,
-        item_type: rawItem.type,
-        type: getSimplifiedType(rawItem),
-        created_at: new Date(rawItem.created_at).getTime(),
-        updated_at: new Date(rawItem.updated_at).getTime(),
-      }));
-      setItems(transformedItems);
+      setItems(filteredItems);
     } catch (err: any) {
       console.error('Error loading items:', err);
       const errorMessage = err.message ? `${err.message}\n${err.stack}` : String(err);
@@ -91,14 +94,25 @@ export function VaultPage() {
     localStorage.setItem('vaultView', newView);
   };
 
-  // In-memory add handler
-  const handleAddItem = async (newItem: VaultItem) => {
-    setAllItems(prev => [...prev, newItem]);
+  const handleItemsChange = async () => {
+    setIsLoading(true);
+    try {
+      await loadAllItems();
+      await loadItems();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // In-memory delete handler
   const handleDeleteItem = async (id: string) => {
-    setAllItems(prev => prev.filter(item => item.id !== id));
+    try {
+      await invoke('delete_item', { id }); // Call backend to delete
+      await handleItemsChange(); // Reload items from backend
+    } catch (err) {
+      console.error('Error deleting item:', err);
+      setError('Failed to delete item.');
+    }
   };
 
   useEffect(() => {
@@ -107,7 +121,7 @@ export function VaultPage() {
 
   useEffect(() => {
     loadItems();
-  }, [selectedType, sortOrder, currentFolderId]);
+  }, [selectedType, sortOrder, currentFolderId, searchQuery]);
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -133,26 +147,13 @@ export function VaultPage() {
         : `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Vault`;
   };
 
-  const filteredItems = allItems.filter(item => {
-    if (currentFolderId && item.parent_id !== currentFolderId) return false;
-    if (selectedType !== 'all' && item.type !== selectedType) return false;
-    if (searchQuery.trim() !== '') {
-      const q = searchQuery.toLowerCase();
-      return (
-        item.name.toLowerCase().includes(q) ||
-        (item.tags && item.tags.some(tag => tag.toLowerCase().includes(q)))
-      );
-    }
-    return true;
-  });
-
   return (
     <div className="flex h-screen bg-gradient-to-b from-gray-900 to-black">
       <div className="relative">
         <Sidebar
           selectedType={selectedType}
           onTypeSelect={setSelectedType}
-          onItemsChange={loadItems}
+          onItemsChange={handleItemsChange}
           currentFolderId={currentFolderId}
         />
         <div className="absolute right-0 top-0 h-full w-px bg-gradient-to-b from-transparent via-gray-700/50 to-transparent"></div>
@@ -166,7 +167,7 @@ export function VaultPage() {
                 <h1 className="text-2xl font-bold text-white">{getVaultTitle()}</h1>
                 {!isLoading && (
                   <span className="px-3 py-1 bg-gray-800/60 rounded-full text-sm text-gray-400">
-                    {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
+                    {items.length} item{items.length !== 1 ? 's' : ''}
                   </span>
                 )}
               </div>
@@ -288,7 +289,7 @@ export function VaultPage() {
 
         <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
           <ItemList
-            items={filteredItems}
+            items={items}
             onItemsChange={loadItems}
             onDelete={handleDeleteItem}
             isLoading={isLoading}
@@ -301,7 +302,7 @@ export function VaultPage() {
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
           type={addType}
-          onSuccess={handleAddItem}
+          onSuccess={handleItemsChange}
           parentId={currentFolderId}
         />
       </main>

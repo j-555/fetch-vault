@@ -159,9 +159,9 @@ export function CsvImportModal({ isOpen, onClose, onSuccess, parentId }: CsvImpo
                         <DocumentArrowUpIcon className="h-5 w-5" />
                         Choose CSV File
                       </button>
-                      <p className="mt-2 text-sm text-gray-400">
-                        Supported format: CSV with columns: Account, Login Name, Password, Web Site, Comments
-                      </p>
+                      <div className="text-xs text-gray-400 mt-2">
+                        Supported format: CSV with columns: Account, Login Name, Password, Web Site, Comments, url, username, password, httpRealm, formActionOrigin, guid, timeCreated, timeLastUsed, timePasswordChanged
+                      </div>
                     </div>
                   </div>
 

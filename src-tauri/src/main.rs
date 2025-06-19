@@ -201,6 +201,7 @@ fn main() {
             rename_tag,
             delete_tag,
             import_csv,
+            get_all_vault_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -844,4 +845,14 @@ async fn import_csv(args: CsvImportArgs, state: State<'_, VaultState>) -> Result
 
     info!("CSV import successful. Processed {} rows, imported {} items.", row_count, imported_count);
     Ok(())
+}
+
+#[tauri::command]
+async fn get_all_vault_items(state: State<'_, VaultState>) -> Result<Vec<VaultItem>> {
+    let storage = state.storage.lock().unwrap();
+    let crypto = state.crypto.lock().unwrap();
+    if !crypto.is_unlocked() {
+        return Err(Error::VaultLocked);
+    }
+    storage.get_all_items_recursive(&crypto)
 }

@@ -27,8 +27,9 @@ export function AddFolderModal({ isOpen, onClose, onSuccess, parentId, folderTyp
     setError(null);
 
     try {
+      console.log('Creating folder with args:', { name: name.trim(), parentId, folderType });
       await invoke('add_folder', {
-        args: { name: name.trim(), parentId, folderType },
+        args: { name: name.trim(), parentId: parentId, folderType },
       });
       await onSuccess();
       resetAndClose();

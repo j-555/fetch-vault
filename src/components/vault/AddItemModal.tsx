@@ -159,7 +159,7 @@ export function AddItemModal({ isOpen, onClose, type, onSuccess, parentId }: Add
             content: content.trim(),
             item_type: type,
             tags: tags.map(t => t.name.trim()),
-            parentId,
+            parentId: parentId,
           }
         });
       } else if (isFileItem) {
@@ -168,7 +168,7 @@ export function AddItemModal({ isOpen, onClose, type, onSuccess, parentId }: Add
             name: name.trim(),
             file_path: selectedFile,
             tags: tags.map(t => t.name.trim()),
-            parentId,
+            parentId: parentId,
           }
         });
       }
