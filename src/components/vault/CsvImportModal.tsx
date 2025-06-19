@@ -37,6 +37,13 @@ export function CsvImportModal({ isOpen, onClose, onSuccess, parentId }: CsvImpo
       try {
         const lines = content.split('\n');
         const headers = lines[0]?.split(',').map(h => h.trim().replace(/"/g, ''));
+        const requiredHeaders = ["Account", "Login Name", "Password", "Web Site", "Comments"];
+        const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+        if (missingHeaders.length > 0) {
+          setError(`Missing required columns: ${missingHeaders.join(', ')}`);
+          setPreviewData([]);
+          return;
+        }
         const preview = lines.slice(1, 6).map(line => {
           const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
           const row: any = {};
@@ -153,7 +160,7 @@ export function CsvImportModal({ isOpen, onClose, onSuccess, parentId }: CsvImpo
                         Choose CSV File
                       </button>
                       <p className="mt-2 text-sm text-gray-400">
-                        Supported format: CSV with columns: Title, Username, Password, URL, Notes, Tags
+                        Supported format: CSV with columns: Account, Login Name, Password, Web Site, Comments
                       </p>
                     </div>
                   </div>
@@ -185,14 +192,20 @@ export function CsvImportModal({ isOpen, onClose, onSuccess, parentId }: CsvImpo
                             <tbody>
                               {previewData.map((row, index) => (
                                 <tr key={index} className="border-t border-gray-700/30">
-                                  {Object.values(row).map((value, cellIndex) => (
-                                    <td key={cellIndex} className="px-3 py-2 text-gray-400">
-                                      {String(value).length > 20 
-                                        ? String(value).substring(0, 20) + '...' 
-                                        : String(value)
-                                      }
-                                    </td>
-                                  ))}
+                                  {Object.entries(row).map(([header, value], cellIndex) => {
+                                    let displayValue = String(value);
+                                    if (header === 'Web Site') {
+                                      displayValue = displayValue.replace(/https?:\/\//g, '').replace(/www\./g, '');
+                                    }
+                                    return (
+                                      <td key={cellIndex} className="px-3 py-2 text-gray-400">
+                                        {displayValue.length > 20 
+                                          ? displayValue.substring(0, 20) + '...'
+                                          : displayValue
+                                        }
+                                      </td>
+                                    );
+                                  })}
                                 </tr>
                               ))}
                             </tbody>

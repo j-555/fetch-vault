@@ -100,13 +100,21 @@ pub struct CsvImportArgs {
 
 #[derive(Deserialize)]
 pub struct CsvRow {
+    #[serde(rename = "Account")]
+    account: Option<String>,
+    #[serde(rename = "Login Name")]
+    login_name: Option<String>,
+    #[serde(rename = "Password")]
+    password: Option<String>,
+    #[serde(rename = "Web Site")]
+    web_site: Option<String>,
+    #[serde(rename = "Comments")]
+    comments: Option<String>,
     // Standard password manager format
     #[serde(rename = "Title")]
     title: Option<String>,
     #[serde(rename = "Username")]
     username: Option<String>,
-    #[serde(rename = "Password")]
-    password: Option<String>,
     #[serde(rename = "URL")]
     url: Option<String>,
     #[serde(rename = "Notes")]
@@ -720,12 +728,13 @@ async fn import_csv(args: CsvImportArgs, state: State<'_, VaultState>) -> Result
                 let row: CsvRow = row;
                 
                 // Extract data from either format
-                let title = row.title
+                let title = row.account
+                    .or(row.title)
                     .or(row.name_browser)
                     .or(row.hostname_browser)
                     .or_else(|| {
-                        // Try to extract domain from URL as fallback
-                        row.url.as_ref()
+                        row.web_site.as_ref()
+                            .or(row.url.as_ref())
                             .or(row.url_browser.as_ref())
                             .and_then(|url| {
                                 url.replace("https://", "")
@@ -736,10 +745,10 @@ async fn import_csv(args: CsvImportArgs, state: State<'_, VaultState>) -> Result
                             })
                     });
                 
-                let username = row.username.or(row.username_browser);
+                let username = row.login_name.or(row.username).or(row.username_browser);
                 let password = row.password.or(row.password_browser);
-                let url = row.url.or(row.url_browser);
-                let notes = row.notes;
+                let url = row.web_site.or(row.url).or(row.url_browser);
+                let notes = row.comments.or(row.notes);
                 let tags = row.tags;
                 
                 info!("Processing row {}: title = {:?}, username = {:?}", row_count, title, username);

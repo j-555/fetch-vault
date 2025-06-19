@@ -9,9 +9,10 @@ interface ItemListProps {
   error?: string | null;
   view: string;
   onFolderClick: (item: VaultItem) => void;
+  onDelete: (id: string) => Promise<void>;
 }
 
-export const ItemList = ({ items, onItemsChange, error, view, onFolderClick }: ItemListProps) => {
+export const ItemList = ({ items, onItemsChange, error, view, onFolderClick, onDelete }: ItemListProps) => {
     if (error) {
       return (
         <div className="flex flex-col items-center justify-center h-[50vh] text-center">
@@ -48,7 +49,7 @@ export const ItemList = ({ items, onItemsChange, error, view, onFolderClick }: I
           <ItemCard
             key={item.id}
             item={item}
-            onDelete={onItemsChange}
+            onDelete={() => onDelete(item.id)}
             onFolderClick={onFolderClick}
           />
         ))}
