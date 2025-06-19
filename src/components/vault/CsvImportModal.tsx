@@ -192,14 +192,20 @@ export function CsvImportModal({ isOpen, onClose, onSuccess, parentId }: CsvImpo
                             <tbody>
                               {previewData.map((row, index) => (
                                 <tr key={index} className="border-t border-gray-700/30">
-                                  {Object.values(row).map((value, cellIndex) => (
-                                    <td key={cellIndex} className="px-3 py-2 text-gray-400">
-                                      {String(value).length > 20 
-                                        ? String(value).substring(0, 20) + '...' 
-                                        : String(value)
-                                      }
-                                    </td>
-                                  ))}
+                                  {Object.entries(row).map(([header, value], cellIndex) => {
+                                    let displayValue = String(value);
+                                    if (header === 'Web Site') {
+                                      displayValue = displayValue.replace(/https?:\/\//g, '').replace(/www\./g, '');
+                                    }
+                                    return (
+                                      <td key={cellIndex} className="px-3 py-2 text-gray-400">
+                                        {displayValue.length > 20 
+                                          ? displayValue.substring(0, 20) + '...'
+                                          : displayValue
+                                        }
+                                      </td>
+                                    );
+                                  })}
                                 </tr>
                               ))}
                             </tbody>

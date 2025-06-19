@@ -10,9 +10,11 @@ import { getSimplifiedType } from '../../utils/helpers';
 
 export function VaultPage() {
   const [items, setItems] = useState<VaultItem[]>([]);
+  const [allItems, setAllItems] = useState<VaultItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([{ id: null, name: 'Vault' }]);
@@ -23,17 +25,13 @@ export function VaultPage() {
   });
   const [vaultView, setVaultView] = useState(() => localStorage.getItem('vaultView') || 'grid');
 
-  const loadItems = async () => {
+  const loadAllItems = async () => {
     try {
-      setIsLoading(true);
-      setError(null);
-
       const fetchedItemsRaw = await invoke<RawBackendItem[]>('get_vault_items', {
-        parentId: currentFolderId,
-        itemType: selectedType === 'all' ? null : selectedType,
+        parentId: null,
+        itemType: null,
         orderBy: sortOrder.value,
       });
-
       const transformedItems: VaultItem[] = fetchedItemsRaw.map(rawItem => ({
         ...rawItem,
         item_type: rawItem.type,
@@ -41,7 +39,28 @@ export function VaultPage() {
         created_at: new Date(rawItem.created_at).getTime(),
         updated_at: new Date(rawItem.updated_at).getTime(),
       }));
+      setAllItems(transformedItems);
+    } catch (err) {
+      // ignore for now
+    }
+  };
 
+  const loadItems = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const fetchedItemsRaw = await invoke<RawBackendItem[]>('get_vault_items', {
+        parentId: currentFolderId,
+        itemType: selectedType === 'all' ? null : selectedType,
+        orderBy: sortOrder.value,
+      });
+      const transformedItems: VaultItem[] = fetchedItemsRaw.map(rawItem => ({
+        ...rawItem,
+        item_type: rawItem.type,
+        type: getSimplifiedType(rawItem),
+        created_at: new Date(rawItem.created_at).getTime(),
+        updated_at: new Date(rawItem.updated_at).getTime(),
+      }));
       setItems(transformedItems);
     } catch (err: any) {
       console.error('Error loading items:', err);
@@ -66,6 +85,10 @@ export function VaultPage() {
     setVaultView(newView);
     localStorage.setItem('vaultView', newView);
   };
+
+  useEffect(() => {
+    loadAllItems();
+  }, []);
 
   useEffect(() => {
     loadItems();
@@ -95,6 +118,19 @@ export function VaultPage() {
         : `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Vault`;
   };
 
+  const filteredItems = allItems.filter(item => {
+    if (currentFolderId && item.parent_id !== currentFolderId) return false;
+    if (selectedType !== 'all' && item.type !== selectedType) return false;
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      return (
+        item.name.toLowerCase().includes(q) ||
+        (item.tags && item.tags.some(tag => tag.toLowerCase().includes(q)))
+      );
+    }
+    return true;
+  });
+
   return (
     <div className="flex h-screen bg-gradient-to-b from-gray-900 to-black">
       <div className="relative">
@@ -114,12 +150,20 @@ export function VaultPage() {
                 <h1 className="text-2xl font-bold text-white">{getVaultTitle()}</h1>
                 {!isLoading && (
                   <span className="px-3 py-1 bg-gray-800/60 rounded-full text-sm text-gray-400">
-                    {items.length} item{items.length !== 1 ? 's' : ''}
+                    {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-3 mt-1">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors mr-2"
+                  style={{ minWidth: 180 }}
+                />
                 <div className="flex items-center bg-gray-800/50 rounded-lg p-1">
                   <button
                     onClick={() => handleViewChange('grid')}
@@ -225,7 +269,7 @@ export function VaultPage() {
 
         <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
           <ItemList
-            items={items}
+            items={filteredItems}
             onItemsChange={loadItems}
             isLoading={isLoading}
             error={error}
