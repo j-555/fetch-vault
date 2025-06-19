@@ -11,6 +11,7 @@ use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rand::seq::SliceRandom;
+use csv::ReaderBuilder;
 
 use fetch::crypto::{Crypto, KeyDerivationStrength};
 use fetch::error::{Error, Result};
@@ -89,13 +90,61 @@ pub struct DeleteTagArgs {
     tag_name: String,
 }
 
+#[derive(Deserialize)]
+pub struct CsvImportArgs {
+    #[serde(rename = "csvContent")]
+    csv_content: String,
+    #[serde(rename = "parentId")]
+    parent_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CsvRow {
+    // Standard password manager format
+    #[serde(rename = "Title")]
+    title: Option<String>,
+    #[serde(rename = "Username")]
+    username: Option<String>,
+    #[serde(rename = "Password")]
+    password: Option<String>,
+    #[serde(rename = "URL")]
+    url: Option<String>,
+    #[serde(rename = "Notes")]
+    notes: Option<String>,
+    #[serde(rename = "Tags")]
+    tags: Option<String>,
+    
+    // Browser export format (Firefox/Chrome)
+    #[serde(rename = "url")]
+    url_browser: Option<String>,
+    #[serde(rename = "username")]
+    username_browser: Option<String>,
+    #[serde(rename = "password")]
+    password_browser: Option<String>,
+    #[serde(rename = "name")]
+    name_browser: Option<String>,
+    #[serde(rename = "hostname")]
+    hostname_browser: Option<String>,
+    #[serde(rename = "httpRealm")]
+    http_realm: Option<String>,
+    #[serde(rename = "formActionOrigin")]
+    form_action_origin: Option<String>,
+    #[serde(rename = "guid")]
+    guid: Option<String>,
+    #[serde(rename = "timeCreated")]
+    time_created: Option<String>,
+    #[serde(rename = "timeLastUsed")]
+    time_last_used: Option<String>,
+    #[serde(rename = "timePasswordChanged")]
+    time_password_changed: Option<String>,
+}
+
 #[derive(Serialize)]
 pub struct VaultStatus {
     initialized: bool,
     unlocked: bool,
     strength: Option<KeyDerivationStrength>,
 }
-
 
 fn main() {
     tauri::Builder::default()
@@ -143,6 +192,7 @@ fn main() {
             get_all_tags,
             rename_tag,
             delete_tag,
+            import_csv,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -634,5 +684,155 @@ async fn delete_tag(args: DeleteTagArgs, state: State<'_, VaultState>) -> Result
     
     storage.remove_tag_from_all_items(&args.tag_name, &crypto)?;
     info!("Tag '{}' successfully deleted from all items.", args.tag_name);
+    Ok(())
+}
+
+#[tauri::command]
+async fn import_csv(args: CsvImportArgs, state: State<'_, VaultState>) -> Result<()> {
+    info!("Importing CSV content.");
+
+    let storage = state.storage.lock().unwrap();
+    let crypto = state.crypto.lock().unwrap();
+
+    if !crypto.is_unlocked() {
+        error!("Vault is locked, cannot import CSV content.");
+        return Err(Error::VaultLocked);
+    }
+
+    let csv_content = &args.csv_content;
+    let parent_id = args.parent_id;
+
+    info!("CSV content length: {} bytes", csv_content.len());
+    info!("CSV content preview: {}", &csv_content[..csv_content.len().min(200)]);
+
+    let mut reader = ReaderBuilder::new()
+        .has_headers(true)
+        .flexible(true)
+        .from_reader(csv_content.as_bytes());
+
+    let mut imported_count = 0;
+    let mut row_count = 0;
+
+    for result in reader.deserialize() {
+        row_count += 1;
+        match result {
+            Ok(row) => {
+                let row: CsvRow = row;
+                
+                // Extract data from either format
+                let title = row.title
+                    .or(row.name_browser)
+                    .or(row.hostname_browser)
+                    .or_else(|| {
+                        // Try to extract domain from URL as fallback
+                        row.url.as_ref()
+                            .or(row.url_browser.as_ref())
+                            .and_then(|url| {
+                                url.replace("https://", "")
+                                   .replace("http://", "")
+                                   .split('/')
+                                   .next()
+                                   .map(|s| s.to_string())
+                            })
+                    });
+                
+                let username = row.username.or(row.username_browser);
+                let password = row.password.or(row.password_browser);
+                let url = row.url.or(row.url_browser);
+                let notes = row.notes;
+                let tags = row.tags;
+                
+                info!("Processing row {}: title = {:?}, username = {:?}", row_count, title, username);
+                
+                // Skip rows without a title
+                if title.is_none() || title.as_ref().unwrap().trim().is_empty() {
+                    info!("Skipping row {} - no title", row_count);
+                    continue;
+                }
+
+                // Create the content for the password item
+                let mut content = String::new();
+                if let Some(username_val) = &username {
+                    if !username_val.trim().is_empty() {
+                        content.push_str(&format!("Username: {}\n\n", username_val.trim()));
+                    }
+                }
+                if let Some(password_val) = &password {
+                    if !password_val.trim().is_empty() {
+                        content.push_str(&format!("Password: {}\n\n", password_val.trim()));
+                    }
+                }
+                if let Some(url_val) = &url {
+                    if !url_val.trim().is_empty() {
+                        content.push_str(&format!("URL: {}\n\n", url_val.trim()));
+                    }
+                }
+                if let Some(notes_val) = &notes {
+                    if !notes_val.trim().is_empty() {
+                        content.push_str(&format!("Notes: {}\n\n", notes_val.trim()));
+                    }
+                }
+                let content = content.trim_end().to_string();
+                info!("Created content for row {}: '{}' (length: {})", row_count, content, content.len());
+                
+                // Skip rows with no content
+                if content.trim().is_empty() {
+                    info!("Skipping row {} - no content to store", row_count);
+                    continue;
+                }
+                
+                // Parse tags
+                let tags_vec: Vec<String> = tags
+                    .unwrap_or_default()
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+
+                info!("Parsed tags for row {}: {:?}", row_count, tags_vec);
+
+                // Create the vault item
+                let item = VaultItem {
+                    id: Uuid::new_v4().to_string(),
+                    parent_id: parent_id.clone(),
+                    name: title.unwrap().trim().to_string(),
+                    data_path: "".to_string(),
+                    item_type: "text/plain".to_string(),
+                    folder_type: None,
+                    tags: tags_vec,
+                    created_at: Utc::now(),
+                    updated_at: Utc::now(),
+                };
+
+                info!("Created vault item for row {}: {} (id: {})", row_count, item.name, item.id);
+
+                // Add the item to storage
+                storage.add_item(&item, &crypto)?;
+                info!("Added item to storage for row {}", row_count);
+                
+                // Write the content to a file
+                let file_name = format!("{}.txt", item.id);
+                info!("Writing content to file: {} (content length: {})", file_name, content.len());
+                let encrypted_content = crypto.encrypt(content.as_bytes())?;
+                storage.write_encrypted_file(&encrypted_content, &file_name)?;
+                info!("Successfully wrote encrypted content to file: {}", file_name);
+                
+                // Update the item with the correct data path
+                let mut updated_item = item.clone();
+                updated_item.data_path = file_name.clone();
+                storage.update_item_fields(&updated_item, &crypto)?;
+                info!("Updated item data_path to: {}", file_name);
+                
+                imported_count += 1;
+                info!("Successfully imported row {}: {}", row_count, item.name);
+            }
+            Err(e) => {
+                error!("Error parsing row {}: {}", row_count, e);
+                return Err(Error::Csv(format!("Error parsing row {}: {}", row_count, e)));
+            }
+        }
+    }
+
+    info!("CSV import successful. Processed {} rows, imported {} items.", row_count, imported_count);
     Ok(())
 }

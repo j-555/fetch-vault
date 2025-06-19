@@ -18,6 +18,9 @@ pub enum Error {
     #[error("Zip error: {0}")]
     Zip(String),
 
+    #[error("CSV error: {0}")]
+    Csv(String),
+
     #[error("Invalid key")]
     InvalidKey,
 
@@ -108,5 +111,11 @@ impl From<tauri::Error> for Error {
 impl From<ZipError> for Error {
     fn from(err: ZipError) -> Self {
         Error::Zip(err.to_string())
+    }
+}
+
+impl From<csv::Error> for Error {
+    fn from(err: csv::Error) -> Self {
+        Error::Csv(err.to_string())
     }
 }

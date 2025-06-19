@@ -11,6 +11,7 @@ import {
   Cog6ToothIcon,
   InformationCircleIcon,
   FolderPlusIcon,
+  ArrowUpTrayIcon,
 } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -18,6 +19,7 @@ import { AddItemModal } from './AddItemModal';
 import { getVersion } from '@tauri-apps/api/app';
 import { AboutModal } from '../shared/AboutModal';
 import { AddFolderModal } from './AddFolderModal';
+import { CsvImportModal } from './CsvImportModal';
 
 interface SidebarProps {
   selectedType: string;
@@ -39,6 +41,7 @@ export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFold
   const { logout } = useAuth();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
+  const [isCsvImportModalOpen, setIsCsvImportModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [appVersion, setAppVersion] = useState('');
 
@@ -137,16 +140,25 @@ export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFold
             </div>
             <div className="flex items-center space-x-2">
                 <button
+                    onClick={() => setIsCsvImportModalOpen(true)}
+                    title="Import CSV"
+                    className="flex-1 flex items-center justify-center px-4 py-3 text-green-400 bg-green-900/20 hover:bg-green-900/30 hover:text-green-300 rounded-lg font-medium transition-all duration-200 border border-green-700/50"
+                >
+                    <ArrowUpTrayIcon className="h-5 w-5" />
+                </button>
+                <button
                     onClick={() => navigate('/settings')}
                     title="Settings"
                     className="flex-1 flex items-center justify-center px-4 py-3 text-gray-400 bg-gray-800/50 hover:bg-gray-800/70 hover:text-gray-200 rounded-lg font-medium transition-all duration-200 border border-gray-700/50"
                 >
                     <Cog6ToothIcon className="h-5 w-5" />
                 </button>
+            </div>
+            <div className="flex items-center space-x-2">
                 <button
                     onClick={handleLogout}
                     title="Logout"
-                    className="flex-1 flex items-center justify-center px-4 py-3 bg-red-900/20 text-red-400 hover:bg-red-900/30 hover:text-red-300 rounded-lg font-medium transition-all duration-200 border border-red-700/50"
+                    className="w-full flex items-center justify-center px-4 py-3 bg-red-900/20 text-red-400 hover:bg-red-900/30 hover:text-red-300 rounded-lg font-medium transition-all duration-200 border border-red-700/50"
                 >
                     <ArrowLeftOnRectangleIcon className="h-5 w-5" />
                 </button>
@@ -167,6 +179,12 @@ export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFold
         onSuccess={onItemsChange}
         parentId={currentFolderId}
         folderType={selectedType === 'all' ? undefined : selectedType}
+      />
+      <CsvImportModal
+        isOpen={isCsvImportModalOpen}
+        onClose={() => setIsCsvImportModalOpen(false)}
+        onSuccess={onItemsChange}
+        parentId={currentFolderId}
       />
       <AboutModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />
     </div>
