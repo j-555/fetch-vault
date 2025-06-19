@@ -37,6 +37,13 @@ export function CsvImportModal({ isOpen, onClose, onSuccess, parentId }: CsvImpo
       try {
         const lines = content.split('\n');
         const headers = lines[0]?.split(',').map(h => h.trim().replace(/"/g, ''));
+        const requiredHeaders = ["Account", "Login Name", "Password", "Web Site", "Comments"];
+        const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+        if (missingHeaders.length > 0) {
+          setError(`Missing required columns: ${missingHeaders.join(', ')}`);
+          setPreviewData([]);
+          return;
+        }
         const preview = lines.slice(1, 6).map(line => {
           const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
           const row: any = {};
@@ -153,7 +160,7 @@ export function CsvImportModal({ isOpen, onClose, onSuccess, parentId }: CsvImpo
                         Choose CSV File
                       </button>
                       <p className="mt-2 text-sm text-gray-400">
-                        Supported format: CSV with columns: Title, Username, Password, URL, Notes, Tags
+                        Supported format: CSV with columns: Account, Login Name, Password, Web Site, Comments
                       </p>
                     </div>
                   </div>
