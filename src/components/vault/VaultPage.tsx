@@ -7,6 +7,7 @@ import { Listbox, Transition } from '@headlessui/react';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
 import { sortOptions } from '../../utils/constants';
 import { getSimplifiedType } from '../../utils/helpers';
+import { AddItemModal } from './AddItemModal';
 
 export function VaultPage() {
   const [items, setItems] = useState<VaultItem[]>([]);
@@ -24,6 +25,10 @@ export function VaultPage() {
     return sortOptions.find(opt => opt.value === saved) || sortOptions[0];
   });
   const [vaultView, setVaultView] = useState(() => localStorage.getItem('vaultView') || 'grid');
+
+  // Add modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addType, setAddType] = useState<'text' | 'key' | 'image' | 'video' | 'audio'>('text');
 
   const loadAllItems = async () => {
     try {
@@ -84,6 +89,16 @@ export function VaultPage() {
   const handleViewChange = (newView: string) => {
     setVaultView(newView);
     localStorage.setItem('vaultView', newView);
+  };
+
+  // In-memory add handler
+  const handleAddItem = async (newItem: VaultItem) => {
+    setAllItems(prev => [...prev, newItem]);
+  };
+
+  // In-memory delete handler
+  const handleDeleteItem = async (id: string) => {
+    setAllItems(prev => prev.filter(item => item.id !== id));
   };
 
   useEffect(() => {
@@ -275,12 +290,20 @@ export function VaultPage() {
           <ItemList
             items={filteredItems}
             onItemsChange={loadItems}
+            onDelete={handleDeleteItem}
             isLoading={isLoading}
             error={error}
             view={vaultView}
             onFolderClick={handleFolderClick}
           />
         </div>
+        <AddItemModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          type={addType}
+          onSuccess={handleAddItem}
+          parentId={currentFolderId}
+        />
       </main>
     </div>
   );
