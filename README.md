@@ -1,5 +1,5 @@
 TODO:
 
-- import feature
-- more detailed context menu
-- 
+- GUI cleanup
+- Overall code cleanup
+- Rework filter system
