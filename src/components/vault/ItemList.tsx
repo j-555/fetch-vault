@@ -1,6 +1,7 @@
 import { ItemCard } from './ItemCard';
 import { CubeTransparentIcon } from '@heroicons/react/24/outline';
 import { VaultItem } from '../../types';
+import { useTheme } from '../../hooks/useTheme';
 
 interface ItemListProps {
   items: VaultItem[];
@@ -13,6 +14,30 @@ interface ItemListProps {
 }
 
 export const ItemList = ({ items, onItemsChange, error, view, onFolderClick, onDelete }: ItemListProps) => {
+    const { theme, themeVersion } = useTheme();
+
+    const getTextColor = () => {
+      switch (theme) {
+        case 'light':
+          return 'text-gray-600';
+        case 'dark':
+          return 'text-gray-400';
+        default:
+          return 'text-gray-400';
+      }
+    };
+
+    const getBorderColor = () => {
+      switch (theme) {
+        case 'light':
+          return 'border-gray-200';
+        case 'dark':
+          return 'border-gray-700';
+        default:
+          return 'border-gray-700';
+      }
+    };
+
     if (error) {
       return (
         <div className="flex flex-col items-center justify-center h-[50vh] text-center">
@@ -23,10 +48,10 @@ export const ItemList = ({ items, onItemsChange, error, view, onFolderClick, onD
 
     if (items.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center h-[50vh] text-center border-gray-700/50 rounded-xl">
-          <CubeTransparentIcon className="h-16 w-16 text-gray-600 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-400">No items yet</h3>
-          <p className="text-sm text-gray-500 mt-1">
+        <div key={themeVersion} className={`flex flex-col items-center justify-center h-[50vh] text-center ${getBorderColor()} rounded-xl`}>
+          <CubeTransparentIcon className={`h-16 w-16 ${getTextColor()} mb-4`} />
+          <h3 className={`text-lg font-semibold ${getTextColor()}`}>No items yet</h3>
+          <p className={`text-sm ${getTextColor()} mt-1`}>
             Click the '+' or folder icon in the sidebar to add something here.
           </p>
         </div>
@@ -51,6 +76,7 @@ export const ItemList = ({ items, onItemsChange, error, view, onFolderClick, onD
             item={item}
             onDelete={() => onDelete(item.id)}
             onFolderClick={onFolderClick}
+            onItemUpdated={onItemsChange}
           />
         ))}
       </div>

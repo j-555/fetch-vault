@@ -123,6 +123,13 @@ impl Storage {
         })
     }
 
+    fn clean_url_for_sorting(name: &str) -> String {
+        name.replace("https://", "")
+            .replace("http://", "")
+            .replace("www.", "")
+            .to_lowercase()
+    }
+
     fn row_to_vault_item(row: &Row, crypto: &Crypto) -> RusqliteResult<VaultItem> {
         let encrypted_name: Vec<u8> = row.get(2)?;
         let name = String::from_utf8(crypto.decrypt(&encrypted_name).map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Blob, e.into()))?)
@@ -243,21 +250,50 @@ impl Storage {
         crypto: &Crypto,
     ) -> Result<Vec<VaultItem>> {
         let conn = self.conn.lock().unwrap();
-        let sort_clause = order_by.unwrap_or_default().to_sql();
     
         let all_items_result: RusqliteResult<Vec<VaultItem>> = if let Some(pid) = parent_id {
-            let sql = format!("SELECT * FROM vault_items WHERE parent_id = ?1 {}", sort_clause);
-            let mut stmt = conn.prepare(&sql)?;
+            let sql = "SELECT * FROM vault_items WHERE parent_id = ?1";
+            let mut stmt = conn.prepare(sql)?;
             let item_iter = stmt.query_map(params![pid], |row| Self::row_to_vault_item(row, crypto))?;
             item_iter.collect()
         } else {
-            let sql = format!("SELECT * FROM vault_items WHERE parent_id IS NULL {}", sort_clause);
-            let mut stmt = conn.prepare(&sql)?;
+            let sql = "SELECT * FROM vault_items WHERE parent_id IS NULL";
+            let mut stmt = conn.prepare(sql)?;
             let item_iter = stmt.query_map(params![], |row| Self::row_to_vault_item(row, crypto))?;
             item_iter.collect()
         };
         
-        let all_items = all_items_result?;
+        let mut all_items = all_items_result?;
+        
+        // sort by cleaned url after decryption
+        let sort_order = order_by.unwrap_or_default();
+        all_items.sort_by(|a, b| {
+            // folders always come first
+            if a.item_type == "folder" && b.item_type != "folder" {
+                return std::cmp::Ordering::Less;
+            }
+            if a.item_type != "folder" && b.item_type == "folder" {
+                return std::cmp::Ordering::Greater;
+            }
+            
+            // if both are folders or both are not folders, sort normally
+            match sort_order {
+                SortOrder::CreatedAtDesc => b.created_at.cmp(&a.created_at),
+                SortOrder::CreatedAtAsc => a.created_at.cmp(&b.created_at),
+                SortOrder::NameAsc => {
+                    let a_clean = Self::clean_url_for_sorting(&a.name);
+                    let b_clean = Self::clean_url_for_sorting(&b.name);
+                    a_clean.cmp(&b_clean)
+                },
+                SortOrder::NameDesc => {
+                    let a_clean = Self::clean_url_for_sorting(&a.name);
+                    let b_clean = Self::clean_url_for_sorting(&b.name);
+                    b_clean.cmp(&a_clean)
+                },
+                SortOrder::UpdatedAtDesc => b.updated_at.cmp(&a.updated_at),
+                SortOrder::UpdatedAtAsc => a.updated_at.cmp(&b.updated_at),
+            }
+        });
     
         if let Some(filter) = item_type_filter {
             let filtered_items = all_items
@@ -285,6 +321,23 @@ impl Storage {
         for item in item_iter {
             items.push(item?);
         }
+        
+        // sort by cleaned url (default to nameasc)
+        items.sort_by(|a, b| {
+            // folders are always on top and not a bottom bitch 
+            if a.item_type == "folder" && b.item_type != "folder" {
+                return std::cmp::Ordering::Less;
+            }
+            if a.item_type != "folder" && b.item_type == "folder" {
+                return std::cmp::Ordering::Greater;
+            }
+            
+            // if both are folders or both are not folders, sort alphabetically
+            let a_clean = Self::clean_url_for_sorting(&a.name);
+            let b_clean = Self::clean_url_for_sorting(&b.name);
+            a_clean.cmp(&b_clean)
+        });
+        
         Ok(items)
     }
 
@@ -496,6 +549,16 @@ impl Storage {
         Ok(())
     }
 
+    pub fn get_theme(&self) -> Result<String> {
+        let theme = self.get_meta_value("theme")?;
+        Ok(theme.unwrap_or_else(|| "dark".to_string()))
+    }
+
+    pub fn set_theme(&self, theme: &str) -> Result<()> {
+        self.set_meta_value("theme", theme)?;
+        Ok(())
+    }
+
     pub fn write_encrypted_file(&self, data: &[u8], file_name: &str) -> Result<()> {
         let file_path = self.vault_path.join("data").join(file_name);
         trace!("Writing encrypted file to: {}", file_path.display());
@@ -512,6 +575,58 @@ impl Storage {
 
     pub fn get_vault_path(&self) -> &PathBuf {
         &self.vault_path
+    }
+
+    pub fn reset(&self) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        
+        // clear all tables (eat shit data)
+        conn.execute("DELETE FROM vault_items", [])?;
+        conn.execute("DELETE FROM vault_meta", [])?;
+        
+        // reset the database to initial state (fresh start!)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS vault_items (
+                id TEXT PRIMARY KEY,
+                parent_id TEXT,
+                name BLOB NOT NULL,
+                item_type BLOB NOT NULL,
+                data_path BLOB NOT NULL,
+                folder_type BLOB,
+                tags BLOB,
+                created_at BLOB NOT NULL,
+                updated_at BLOB NOT NULL
+            )",
+            [],
+        )?;
+        
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS vault_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )",
+            [],
+        )?;
+
+        // clear the data directory (nuke those files!)
+        let data_dir = self.vault_path.join("data");
+        if data_dir.exists() {
+            fs::remove_dir_all(&data_dir)?;
+        }
+        fs::create_dir_all(&data_dir)?;
+
+        // delete salt and verify files to mark vault as uninitialized (no more secrets!)
+        let salt_file = self.vault_path.join("salt");
+        let verify_file = self.vault_path.join("verify");
+        
+        if salt_file.exists() {
+            fs::remove_file(&salt_file)?;
+        }
+        if verify_file.exists() {
+            fs::remove_file(&verify_file)?;
+        }
+
+        Ok(())
     }
 
     pub fn rename_tag_in_all_items(&self, old_tag: &str, new_tag: &str, crypto: &Crypto) -> Result<()> {

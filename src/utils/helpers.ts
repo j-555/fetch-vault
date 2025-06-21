@@ -14,3 +14,7 @@ export const getSimplifiedType = (item: RawBackendItem): VaultItem['type'] => {
 export const getExtensionFromMime = (mime_type: string) => {
     return mime.extension(mime_type) || 'bin';
 };
+
+export const cleanUrlForDisplay = (url: string): string => {
+    return url.replace(/https?:\/\//g, '').replace(/www\./g, '');
+};

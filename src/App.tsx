@@ -5,6 +5,7 @@ import { SettingsPage } from './components/settings/SettingsPage';
 import { Login } from './components/auth/Login';
 import { useAuth } from './hooks/useAuth';
 import { ErrorPopup } from './components/auth/ErrorPopup';
+import { useTheme } from './hooks/useTheme';
 import './App.css';
 
 function getFormattedError(error: string): { title: string; description: string } {
@@ -85,11 +86,34 @@ function App() {
     clearError,
   } = useAuth();
   
+  const { theme, themeVersion } = useTheme();
   const { title: errorTitle, description: errorDescription } = getFormattedError(error || '');
+
+  // what the fuck is going on here?
+  console.log('App: Vault status - isInitialized:', isInitialized, 'isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
+
+  const getLoadingBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gradient-to-b from-gray-50 to-gray-100';
+      case 'dark':
+        return 'bg-gradient-to-b from-gray-900 to-black';
+      case 'ocean':
+        return 'bg-gradient-to-b from-blue-950 to-blue-900';
+      case 'forest':
+        return 'bg-gradient-to-b from-emerald-950 to-emerald-900';
+      case 'sunset':
+        return 'bg-gradient-to-b from-orange-950 to-orange-900';
+      case 'purple':
+        return 'bg-gradient-to-b from-purple-950 to-purple-900';
+      default:
+        return 'bg-gradient-to-b from-gray-900 to-black';
+    }
+  };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
+      <div className={`min-h-screen ${getLoadingBackground()} flex items-center justify-center`}>
         <div className="flex flex-col items-center space-y-4">
           <ArrowPathIcon className="h-8 w-8 text-indigo-500 animate-spin" />
           <div className="text-gray-400">Loading vault...</div>
@@ -100,7 +124,7 @@ function App() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
+      <div key={themeVersion} className={`min-h-screen ${getLoadingBackground()}`}>
         <Routes>
           {isAuthenticated ? (
             <>

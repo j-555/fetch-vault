@@ -85,6 +85,11 @@ export function useAuth() {
     setError(null);
   };
 
+  const refreshVaultStatus = async () => {
+    await checkVaultStatus();
+    setIsAuthenticated(false);
+  };
+
   return {
     isInitialized,
     isAuthenticated,
@@ -94,6 +99,7 @@ export function useAuth() {
     login,
     logout,
     checkVaultStatus,
+    refreshVaultStatus,
     clearError,
   };
 }

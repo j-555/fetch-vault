@@ -12,7 +12,6 @@ import { MasterKeyConfirmationModal } from '../auth/MasterKeyConfirmationModal';
 import { UpdateMasterKeyModal } from './UpdateMasterKeyModal';
 import { SuccessPopup } from './SuccessPopup';
 import { DeleteVaultModal } from './DeleteVaultModal';
-import { TabButton } from './TabButton';
 import { AppearanceSettings } from './tabs/AppearanceSettings';
 import { SecuritySettings } from './tabs/SecuritySettings';
 import { VaultManagementSettings } from './tabs/VaultManagementSettings';
@@ -21,6 +20,7 @@ import { TagManagementSettings } from './tabs/TagManagementSettings';
 import { useSettings } from '../../hooks/useSettings';
 import { useVaultManagement } from '../../hooks/useVaultManagement';
 import { useVaultStats } from '../../hooks/useVaultStats';
+import { useTheme } from '../../hooks/useTheme';
 
 type Tab = 'appearance' | 'security' | 'management' | 'stats' | 'tags';
 
@@ -31,20 +31,102 @@ export function SettingsPage() {
   const { autoLock, sortOrder, vaultView, requireKeyOnAccess } = useSettings();
   const { stats } = useVaultStats();
   const vaultManagement = useVaultManagement();
+  const { theme, themeVersion } = useTheme();
 
   const [isUpdateKeyModalOpen, setIsUpdateKeyModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isDeleteVaultModalOpen, setIsDeleteVaultModalOpen] = useState(false);
   
+  const getBackgroundClass = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gradient-to-b from-gray-50 to-gray-100';
+      case 'dark':
+        return 'bg-gradient-to-b from-gray-900 to-black';
+      default:
+        return 'bg-gradient-to-b from-gray-900 to-black';
+    }
+  };
+
+  const getSidebarBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gradient-to-b from-gray-100 to-gray-200';
+      case 'dark':
+        return 'bg-gradient-to-b from-gray-900 to-black';
+      default:
+        return 'bg-gradient-to-b from-gray-900 to-black';
+    }
+  };
+
+  const getBorderColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'border-gray-300';
+      case 'dark':
+        return 'border-gray-700/30';
+      default:
+        return 'border-gray-700/30';
+    }
+  };
+
+  const getTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-900';
+      case 'dark':
+        return 'text-white';
+      default:
+        return 'text-white';
+    }
+  };
+
+  const getSecondaryTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-600';
+      case 'dark':
+        return 'text-gray-500';
+      default:
+        return 'text-gray-500';
+    }
+  };
+
+  const getActiveTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-800';
+      case 'dark':
+        return 'text-white';
+      default:
+        return 'text-white';
+    }
+  };
+
+  const SettingsNavButton = ({ id, name, icon: Icon }: { id: Tab; name: string; icon: React.ElementType }) => {
+    const isActive = activeTab === id;
+    return (
+      <button
+        onClick={() => setActiveTab(id)}
+        className={`relative w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg font-medium transition-all duration-200 text-sm group ${
+          isActive
+            ? `bg-gradient-to-r from-indigo-500/10 via-indigo-500/20 to-transparent ${getActiveTextColor()}`
+            : `${getSecondaryTextColor()} hover:${getTextColor()} hover:bg-white/5`
+        }`}
+      >
+        <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-2/3 w-1 rounded-r-full bg-indigo-400 transition-all duration-200 ease-in-out ${isActive ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'}`}></span>
+        <Icon className={`h-5 w-5 flex-shrink-0 transition-colors duration-200 ${
+            isActive ? 'text-indigo-300' : `${getSecondaryTextColor()} group-hover:text-gray-300`
+        }`} />
+        <span>{name}</span>
+      </button>
+    );
+  };
+
   const renderTabContent = () => {
     switch(activeTab) {
         case 'appearance':
-            return <AppearanceSettings 
-                        vaultView={vaultView.value} 
-                        setVaultView={vaultView.setValue} 
-                        sortOrder={sortOrder.value} 
-                        setSortOrder={sortOrder.setValue} 
-                    />;
+            return <AppearanceSettings />;
         case 'security':
             return <SecuritySettings 
                         onUpdateKey={() => setIsUpdateKeyModalOpen(true)} 
@@ -69,27 +151,55 @@ export function SettingsPage() {
 }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
+    <div className={`min-h-screen ${getBackgroundClass()}`}>
       <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
         <div className="flex items-center justify-between mb-8">
-            <h1 className="text-xl font-semibold text-white">Settings</h1>
-            <button onClick={() => navigate('/')} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800/50">
-                <XMarkIcon className="h-5 w-5" />
-            </button>
+            <h1 className="text-xl font-semibold text-white"></h1>
+            <div className="flex items-center gap-2">
+                <button onClick={() => navigate('/')} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800/50">
+                    <XMarkIcon className="h-5 w-5" />
+                </button>
+            </div>
         </div>
 
         <div className="flex flex-col md:flex-row md:space-x-8">
-            <div className="w-full md:w-1/4 flex-shrink-0 mb-8 md:mb-0">
+            <div className={`w-full md:w-64 flex-shrink-0 mb-8 md:mb-0 ${getSidebarBackground()} rounded-lg border ${getBorderColor()}`}>
+              {/* Header Section */}
+              <div className={`flex flex-col items-center justify-center h-20 px-4 border-b ${getBorderColor()}`}>
+                <h2 className={`text-xl font-bold ${getTextColor()}`}>
+                  Settings
+                </h2>
+              </div>
+
+              {/* Navigation Section */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 <div className="space-y-1">
-                    <TabButton label="Appearance" icon={PaintBrushIcon} isActive={activeTab === 'appearance'} onClick={() => setActiveTab('appearance')} />
-                    <TabButton label="Security" icon={ShieldCheckIcon} isActive={activeTab === 'security'} onClick={() => setActiveTab('security')} />
-                    <TabButton label="Vault Management" icon={ArchiveBoxArrowDownIcon} isActive={activeTab === 'management'} onClick={() => setActiveTab('management')} />
-                    <TabButton label="Statistics" icon={ChartBarIcon} isActive={activeTab === 'stats'} onClick={() => setActiveTab('stats')} />
-                    <TabButton label="Tag Management" icon={TagIcon} isActive={activeTab === 'tags'} onClick={() => setActiveTab('tags')} />
+                  <SettingsNavButton id="appearance" name="Appearance" icon={PaintBrushIcon} />
                 </div>
+
+                <div>
+                  <div className={`px-2 mb-3 text-xs font-semibold ${getSecondaryTextColor()} uppercase tracking-wider`}>
+                    Security & Management
+                  </div>
+                  <div className="space-y-1">
+                    <SettingsNavButton id="security" name="Security" icon={ShieldCheckIcon} />
+                    <SettingsNavButton id="management" name="Vault Management" icon={ArchiveBoxArrowDownIcon} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className={`px-2 mb-3 text-xs font-semibold ${getSecondaryTextColor()} uppercase tracking-wider`}>
+                    Data & Organization
+                  </div>
+                  <div className="space-y-1">
+                    <SettingsNavButton id="stats" name="Statistics" icon={ChartBarIcon} />
+                    <SettingsNavButton id="tags" name="Tag Management" icon={TagIcon} />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <main className="flex-1 bg-gray-800/40 rounded-xl border border-gray-700/60 p-2 sm:p-4">
+            <main className={`flex-1 ${getSidebarBackground()} rounded-xl border ${getBorderColor()} p-2 sm:p-4`}>
                 {renderTabContent()}
             </main>
         </div>

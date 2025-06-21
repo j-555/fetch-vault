@@ -3,7 +3,7 @@ use aes_gcm::{
     Aes256Gcm, Key, Nonce,
 };
 use argon2::{
-    password_hash::{SaltString}, // Removed PasswordHasher
+    password_hash::{SaltString}, // removed passwordhasher
     Argon2, Params, ParamsBuilder,
 };
 use rand::{rngs::OsRng, RngCore};
@@ -29,9 +29,9 @@ impl KeyDerivationStrength {
     fn get_params(&self) -> Result<Params> {
         let mut params = ParamsBuilder::new();
         let builder = match self {
-            KeyDerivationStrength::Fast => params.m_cost(256 * 1024).t_cost(2).p_cost(2), // Increased from 32MB to 256MB
-            KeyDerivationStrength::Recommended => params.m_cost(512 * 1024).t_cost(3).p_cost(4), // Increased from 64MB to 512MB
-            KeyDerivationStrength::Paranoid => params.m_cost(1024 * 1024).t_cost(4).p_cost(4), // Increased from 128MB to 1GB
+            KeyDerivationStrength::Fast => params.m_cost(256 * 1024).t_cost(2).p_cost(2), // increased from 32mb to 256mb
+            KeyDerivationStrength::Recommended => params.m_cost(512 * 1024).t_cost(3).p_cost(4), // increased from 64mb to 512mb
+            KeyDerivationStrength::Paranoid => params.m_cost(1024 * 1024).t_cost(4).p_cost(4), // increased from 128mb to 1gb
         };
 
         builder

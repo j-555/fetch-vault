@@ -1,13 +1,31 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Sidebar } from './Sidebar';
 import { ItemList } from './ItemList';
 import { VaultItem, RawBackendItem, Breadcrumb } from '../../types';
 import { Listbox, Transition } from '@headlessui/react';
-import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/solid';
+import { ChevronDownIcon, ChevronRightIcon, HomeIcon } from '@heroicons/react/24/solid';
 import { sortOptions } from '../../utils/constants';
-import { getSimplifiedType } from '../../utils/helpers';
+import { getSimplifiedType, cleanUrlForDisplay } from '../../utils/helpers';
 import { AddItemModal } from './AddItemModal';
+import { useTheme } from '../../hooks/useTheme';
+
+// custom hook for debounced search (no spam allowed!)
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 export function VaultPage() {
   const [items, setItems] = useState<VaultItem[]>([]);
@@ -17,8 +35,16 @@ export function VaultPage() {
   const [selectedType, setSelectedType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // debounced search to prevent excessive api calls (be nice to the server!)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([{ id: null, name: 'Vault' }]);
+
+  // pagination state (because we can't show everything at once!)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50); // show 50 items per page (not too greedy!)
+  const [totalItems, setTotalItems] = useState(0);
 
   const [sortOrder, setSortOrder] = useState(() => {
     const saved = localStorage.getItem('sortOrder');
@@ -26,20 +52,114 @@ export function VaultPage() {
   });
   const [vaultView, setVaultView] = useState(() => localStorage.getItem('vaultView') || 'grid');
 
-  // Add modal state
+  // add modal state (for when you want to add stuff)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addType, setAddType] = useState<'text' | 'key' | 'image' | 'video' | 'audio'>('text');
 
+  const { theme, themeVersion } = useTheme();
+
+  const getBackgroundColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gradient-to-b from-gray-50 to-gray-100';
+      case 'dark':
+        return 'bg-gradient-to-b from-gray-900 to-black';
+      default:
+        return 'bg-gradient-to-b from-gray-900 to-black';
+    }
+  };
+
+  const getOverlayBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gradient-to-b from-gray-50/90 to-gray-50/70';
+      case 'dark':
+        return 'bg-gradient-to-b from-gray-900/90 to-gray-900/70';
+      default:
+        return 'bg-gradient-to-b from-gray-900/90 to-gray-900/70';
+    }
+  };
+
+  const getCardBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-white';
+      case 'dark':
+        return 'bg-gray-800';
+      default:
+        return 'bg-gray-800';
+    }
+  };
+
+  const getBorderColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'border-gray-200';
+      case 'dark':
+        return 'border-gray-700';
+      default:
+        return 'border-gray-700';
+    }
+  };
+
+  const getTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-900';
+      case 'dark':
+        return 'text-gray-100';
+      default:
+        return 'text-gray-100';
+    }
+  };
+
+  const getSecondaryTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-600';
+      case 'dark':
+        return 'text-gray-400';
+      default:
+        return 'text-gray-400';
+    }
+  };
+
+  const getInputBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-white border-gray-300 text-gray-900 placeholder-gray-500';
+      case 'dark':
+        return 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400';
+      default:
+        return 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400';
+    }
+  };
+
+  const getButtonBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gray-200 hover:bg-gray-300 border-gray-400 text-gray-800';
+      case 'dark':
+        return 'bg-gray-700 hover:bg-gray-600 border-gray-600 text-gray-300';
+      default:
+        return 'bg-gray-700 hover:bg-gray-600 border-gray-600 text-gray-300';
+    }
+  };
+
   const loadAllItems = async () => {
     try {
+      console.log('Loading all items...');
       const fetchedItemsRaw = await invoke<RawBackendItem[]>('get_all_vault_items');
+      console.log('Raw items from backend:', fetchedItemsRaw);
       const transformedItems: VaultItem[] = fetchedItemsRaw.map(rawItem => ({
         ...rawItem,
         item_type: rawItem.type,
+        folder_type: rawItem.folder_type,
         type: getSimplifiedType(rawItem),
         created_at: new Date(rawItem.created_at).getTime(),
         updated_at: new Date(rawItem.updated_at).getTime(),
       }));
+      console.log('Transformed items:', transformedItems);
       setAllItems(transformedItems);
       return transformedItems;
     } catch (err) {
@@ -52,16 +172,30 @@ export function VaultPage() {
     try {
       setIsLoading(true);
       setError(null);
+      console.log('loadItems called with filters:', { currentFolderId, selectedType, debouncedSearchQuery });
       const allItemsData = await loadAllItems();
-      // Only filter for display, do not call get_vault_items again
-      // Add this log to inspect the field names
+      // only filter for display, do not call get_vault_items again
+      // add this log to inspect the field names
       console.log('All items:', allItemsData);
       const filteredItems = allItemsData.filter(item => {
         if (currentFolderId && item.parent_id !== currentFolderId) return false;
         if (!currentFolderId && item.parent_id !== null) return false;
-        if (selectedType !== 'all' && item.type !== selectedType) return false;
-        if (searchQuery.trim() !== '') {
-          const q = searchQuery.toLowerCase();
+        
+        // handle folder filtering based on folder_type
+        if (selectedType !== 'all') {
+          if (item.item_type === 'folder') {
+            // for folders, check if they have a folder_type that matches the selected type
+            if (item.folder_type && item.folder_type !== selectedType) {
+              return false;
+            }
+          } else {
+            // for non-folders, use the regular type filtering
+            if (item.type !== selectedType) return false;
+          }
+        }
+        
+        if (debouncedSearchQuery.trim() !== '') {
+          const q = debouncedSearchQuery.toLowerCase();
           return (
             item.name.toLowerCase().includes(q) ||
             (item.tags && item.tags.some(tag => tag.toLowerCase().includes(q)))
@@ -69,7 +203,9 @@ export function VaultPage() {
         }
         return true;
       });
+      console.log('Filtered items:', filteredItems);
       setItems(filteredItems);
+      setTotalItems(filteredItems.length);
     } catch (err: any) {
       console.error('Error loading items:', err);
       const errorMessage = err.message ? `${err.message}\n${err.stack}` : String(err);
@@ -95,23 +231,25 @@ export function VaultPage() {
   };
 
   const handleItemsChange = async () => {
+    console.log('handleItemsChange called - refreshing items');
     setIsLoading(true);
     try {
       await loadAllItems();
       await loadItems();
+      console.log('handleItemsChange completed successfully');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // In-memory delete handler
-  const handleDeleteItem = async (id: string) => {
+  // in-memory delete handler (bye bye item!)
+  const handleDelete = async (id: string) => {
     try {
-      await invoke('delete_item', { id }); // Call backend to delete
-      await handleItemsChange(); // Reload items from backend
+      await invoke('delete_item', { id }); // call backend to delete
+      await handleItemsChange(); // reload items from backend
     } catch (err) {
       console.error('Error deleting item:', err);
-      setError('Failed to delete item.');
+      setError('Failed to delete item');
     }
   };
 
@@ -121,7 +259,7 @@ export function VaultPage() {
 
   useEffect(() => {
     loadItems();
-  }, [selectedType, sortOrder, currentFolderId, searchQuery]);
+  }, [selectedType, sortOrder, currentFolderId, debouncedSearchQuery]);
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -138,6 +276,20 @@ export function VaultPage() {
     };
   }, []);
 
+  // monitor vault status (keep an eye on that vault!)
+  useEffect(() => {
+    const checkVaultStatus = async () => {
+      try {
+        const status = await invoke('get_vault_status');
+        console.log('Vault status:', status);
+      } catch (err) {
+        console.error('Error checking vault status:', err);
+      }
+    };
+    
+    checkVaultStatus();
+  }, []);
+
   const getVaultTitle = () => {
     if (breadcrumbs.length > 1) {
         return breadcrumbs[breadcrumbs.length - 1].name;
@@ -147,8 +299,66 @@ export function VaultPage() {
         : `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} Vault`;
   };
 
+  const getMainTitle = () => {
+    if (currentFolderId) {
+      return 'Folder';
+    }
+    
+    // convert selectedType to proper display name
+    switch (selectedType) {
+      case 'all':
+        return 'All Items';
+      case 'text':
+        return 'Text Files';
+      case 'key':
+        return 'Keys & Tokens';
+      case 'image':
+        return 'Images';
+      case 'video':
+        return 'Videos';
+      case 'audio':
+        return 'Audio Files';
+      case 'folder':
+        return 'Folders';
+      default:
+        return selectedType.charAt(0).toUpperCase() + selectedType.slice(1);
+    }
+  };
+
+  // page logic (math is fun!)
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = items.slice(startIndex, endIndex);
+
+  // scroll to top when changing pages (because scrolling is so last year)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentPage]);
+
+  const handlePageChange = (page: number) => {
+    // allow empty input for typing
+    if (page === 0) {
+      setCurrentPage(1);
+      return;
+    }
+    
+    // reset to current page if invalid
+    if (page > totalPages) {
+      setCurrentPage(totalPages);
+      return;
+    }
+    
+    setCurrentPage(page);
+  };
+
+  // reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedType, currentFolderId, debouncedSearchQuery]);
+
   return (
-    <div className="flex h-screen bg-gradient-to-b from-gray-900 to-black">
+    <div key={themeVersion} className={`flex h-screen ${getBackgroundColor()}`}>
       <div className="relative">
         <Sidebar
           selectedType={selectedType}
@@ -160,39 +370,73 @@ export function VaultPage() {
       </div>
 
       <main className="flex-1 flex flex-col overflow-y-auto">
-        {/* Sticky Top Bar */}
-        <div className="sticky top-0 z-10 flex flex-col justify-center h-20 px-4 sm:px-6 md:px-8 bg-gradient-to-b from-gray-900/90 to-gray-900/70 backdrop-blur-sm border-b border-gray-700/30">
-            <div className="flex w-full items-center justify-between">
-              <div className="flex items-center gap-4">
-                <h1 className="text-2xl font-bold text-white">{getVaultTitle()}</h1>
-                {!isLoading && (
-                  <span className="px-3 py-1 bg-gray-800/60 rounded-full text-sm text-gray-400">
-                    {items.length} item{items.length !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
+        {/* top bar */}
+        <div className={`sticky top-0 z-10 flex flex-col justify-center h-20 px-4 sm:px-6 md:px-8 ${getOverlayBackground()} backdrop-blur-sm border-b ${getBorderColor()}`}>
+          <div className="flex w-full items-center justify-between">
+            <div className="flex items-center gap-4">
+              <h1 className={`text-xl font-semibold ${getTextColor()}`}>
+                {getMainTitle()}
+              </h1>
+              {currentFolderId && (
+                <span className={`text-sm ${getSecondaryTextColor()}`}>
+                  {breadcrumbs.length > 1 ? `${breadcrumbs.length - 1} levels deep` : ''}
+                </span>
+              )}
             </div>
+            
+            {/* breadcrumb navigation */}
+            <div className="flex items-center space-x-1">
+              {breadcrumbs.map((breadcrumb, index) => (
+                <div key={index} className="flex items-center">
+                  {index > 0 && (
+                    <ChevronRightIcon className={`h-4 w-4 mx-1 ${getSecondaryTextColor()}`} />
+                  )}
+                  <button
+                    onClick={() => handleBreadcrumbClick(index)}
+                    className={`flex items-center space-x-1 px-2 py-1 rounded-md transition-colors ${
+                      index === breadcrumbs.length - 1
+                        ? `${getTextColor()} font-medium`
+                        : `${getSecondaryTextColor()} hover:${getTextColor()} hover:bg-gray-700/50`
+                    }`}
+                  >
+                    {index === 0 ? (
+                      <HomeIcon className="h-4 w-4" />
+                    ) : null}
+                    <span className="text-sm">{breadcrumb.name}</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Unified filter/search bar */}
-        <section className="w-full flex justify-center bg-gray-900 py-4 border-b border-gray-800" style={{ zIndex: 1, position: 'relative' }}>
+        {/* search bar */}
+        <section className={`w-full flex justify-center ${getOverlayBackground()} py-4 border-b ${getBorderColor()}`} style={{ zIndex: 1, position: 'relative' }}>
           <div className="w-full max-w-6xl flex flex-col sm:flex-row items-center gap-4 px-4">
-            {/* Search Input (now first) */}
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search..."
-              className="flex-1 min-w-[180px] max-w-xl px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-            />
-            {/* View Switch (now after search) */}
-            <div className="flex items-center bg-gray-800/50 rounded-lg p-1">
+            {/* Search Input with search icon */}
+            <div className="flex-1 min-w-[180px] max-w-xl relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className={`h-5 w-5 ${getSecondaryTextColor()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search items and tags..."
+                className={`w-full pl-10 pr-3 py-2 ${getInputBackground()} rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
+              />
+            </div>
+            
+            {/* view Switch with color-coded icons */}
+            <div className={`flex items-center ${getButtonBackground()} rounded-lg p-1`}>
               <button
                 onClick={() => handleViewChange('grid')}
                 className={`p-2 rounded-md transition-all duration-200 ${
                   vaultView === 'grid'
                     ? 'bg-indigo-500/30 text-indigo-300'
-                    : 'text-gray-400 hover:text-gray-300'
+                    : `${getSecondaryTextColor()} hover:text-indigo-300`
                 }`}
                 title="Grid View"
               >
@@ -205,7 +449,7 @@ export function VaultPage() {
                 className={`p-2 rounded-md transition-all duration-200 ${
                   vaultView === 'list'
                     ? 'bg-indigo-500/30 text-indigo-300'
-                    : 'text-gray-400 hover:text-gray-300'
+                    : `${getSecondaryTextColor()} hover:text-indigo-300`
                 }`}
                 title="List View"
               >
@@ -214,16 +458,22 @@ export function VaultPage() {
                 </svg>
               </button>
             </div>
-            {/* Sort Dropdown */}
+            
+            {/* filter dropdown with color-coded icon */}
             <div className="flex-shrink-0 w-full sm:w-48">
               <Listbox value={sortOrder} onChange={setSortOrder}>
                 {({ open }) => (
                   <div className="relative w-full">
-                    <Listbox.Button className="relative w-full cursor-default rounded-lg bg-gray-800/50 py-2 pl-3 pr-10 text-left text-sm focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800 border border-gray-700/50">
-                      <span className="block truncate text-gray-300">{sortOrder.label}</span>
+                    <Listbox.Button className={`relative w-full cursor-default rounded-lg ${getButtonBackground()} py-2 pl-3 pr-10 text-left text-sm focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800`}>
+                      <div className="flex items-center">
+                        <svg className={`h-4 w-4 mr-2 ${getSecondaryTextColor()}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                        </svg>
+                        <span className={`block truncate ${getTextColor()}`}>{sortOrder.label}</span>
+                      </div>
                       <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                         <ChevronDownIcon
-                          className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+                          className={`h-5 w-5 ${getSecondaryTextColor()} transition-transform duration-200 ${open ? "rotate-180" : ""}`}
                           aria-hidden="true"
                         />
                       </span>
@@ -234,13 +484,13 @@ export function VaultPage() {
                       leaveFrom="opacity-100"
                       leaveTo="opacity-0"
                     >
-                      <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm border border-gray-700">
+                      <Listbox.Options className={`absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md ${getButtonBackground()} py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm border ${getBorderColor()}`}>
                         {sortOptions.map((option, optionIdx) => (
                           <Listbox.Option
                             key={optionIdx}
                             className={({ active }) =>
                               `relative cursor-pointer select-none py-2 px-4 ${
-                                active ? "bg-indigo-600/50 text-white" : "text-gray-300"
+                                active ? "bg-indigo-600/50 text-white" : getTextColor()
                               }`
                             }
                             value={option}
@@ -256,11 +506,12 @@ export function VaultPage() {
                 )}
               </Listbox>
             </div>
-            {/* Refresh Button */}
+            
+            {/* refresh button with color-coded icon */}
             <button
               onClick={loadItems}
               disabled={isLoading}
-              className="p-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-gray-400 hover:text-gray-300 hover:bg-gray-800/70 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              className={`p-2 ${getButtonBackground()} rounded-lg ${getSecondaryTextColor()} hover:text-indigo-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0`}
               title="Refresh"
             >
               <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -270,33 +521,86 @@ export function VaultPage() {
           </div>
         </section>
 
-        <div className="flex items-center text-xs text-gray-500 mt-1">
-          {breadcrumbs.map((crumb, index) => (
-            <Fragment key={crumb.id || 'root'}>
-              <button
-                onClick={() => handleBreadcrumbClick(index)}
-                className="hover:text-gray-300 hover:underline disabled:hover:no-underline disabled:text-gray-400 font-medium disabled:cursor-default"
-                disabled={index === breadcrumbs.length - 1}
-              >
-                {crumb.name}
-              </button>
-              {index < breadcrumbs.length - 1 && (
-                <ChevronRightIcon className="h-3 w-3 mx-1 text-gray-600" />
-              )}
-            </Fragment>
-          ))}
-        </div>
-
         <div className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
           <ItemList
-            items={items}
+            items={currentItems}
             onItemsChange={loadItems}
-            onDelete={handleDeleteItem}
+            onDelete={handleDelete}
             isLoading={isLoading}
             error={error}
             view={vaultView}
             onFolderClick={handleFolderClick}
           />
+          
+          {/* I'm a genius nigga -luke */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center space-x-2 mt-6">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={`px-3 py-2 ${getButtonBackground()} rounded-lg ${getSecondaryTextColor()} hover:text-gray-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Previous
+              </button>
+              
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`px-3 py-2 rounded-lg transition-all duration-200 ${
+                        currentPage === pageNum
+                          ? 'bg-indigo-600 text-white'
+                          : `${getButtonBackground()} ${getSecondaryTextColor()} hover:text-gray-300`
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              {/* page number type in this */}
+              <div className="flex items-center space-x-2 ml-2">
+                <span className={`text-sm ${getSecondaryTextColor()}`}>Go to:</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  defaultValue={currentPage}
+                  onChange={e => {
+                    const value = parseInt(e.target.value);
+                    if (!isNaN(value) && value >= 1 && value <= totalPages) {
+                      handlePageChange(value);
+                    }
+                  }}
+                  className={`w-16 px-2 py-1 ${getInputBackground()} rounded text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
+                  placeholder={currentPage.toString()}
+                />
+                <span className={`text-sm ${getSecondaryTextColor()}`}>of {totalPages}</span>
+              </div>
+              
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className={`px-3 py-2 ${getButtonBackground()} rounded-lg ${getSecondaryTextColor()} hover:text-gray-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
         <AddItemModal
           isOpen={isAddModalOpen}

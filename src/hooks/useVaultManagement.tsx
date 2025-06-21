@@ -65,7 +65,8 @@ export function useVaultManagement() {
         setIsLoading(true);
         setError(null);
         try {
-            await invoke('delete_vault', { args: { masterKey } });
+            await invoke('delete_vault', { args: { master_key: masterKey } });
+            console.log('Vault deleted successfully, reloading page...');
             window.location.reload();
         } catch (err) {
             console.error("Vault deletion failed:", err);

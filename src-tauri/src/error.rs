@@ -82,7 +82,7 @@ impl From<rusqlite::Error> for Error {
         match err {
             rusqlite::Error::QueryReturnedNoRows => Error::ItemNotFound("query returned no rows".to_string()),
             rusqlite::Error::SqliteFailure(ffi_err, msg_opt) => {
-                // Applied compiler's suggestion to wrap ffi_err.code in Some()
+                // applied compiler's suggestion to wrap ffi_err.code in some() (compiler knows best)
                 let actual_code_option: Option<rusqlite::ErrorCode> = Some(ffi_err.code); 
                 match actual_code_option {
                     Some(rusqlite::ErrorCode::ConstraintViolation) => {

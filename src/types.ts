@@ -4,6 +4,8 @@ export interface VaultItem {
     name: string;
     item_type: string; 
     data_path: string;
+    folder_type?: string;
+    comments?: string;
     tags: string[];
     created_at: number;
     updated_at: number;
@@ -16,6 +18,7 @@ export interface RawBackendItem {
     name: string;
     data_path: string;
     type: string;
+    folder_type?: string;
     tags: string[];
     created_at: string;
     updated_at: string;

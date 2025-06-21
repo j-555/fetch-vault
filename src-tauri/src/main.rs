@@ -50,6 +50,17 @@ pub struct AddFolderArgs {
     folder_type: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct UpdateItemArgs {
+    id: String,
+    name: String,
+    content: String,
+    item_type: String,
+    tags: Vec<String>,
+    #[serde(rename = "parentId")]
+    parent_id: Option<String>,
+}
+
 #[derive(serde::Deserialize)]
 pub struct InitializeVaultArgs {
     #[serde(rename = "masterKey")]
@@ -110,7 +121,7 @@ pub struct CsvRow {
     web_site: Option<String>,
     #[serde(rename = "Comments")]
     comments: Option<String>,
-    // Standard password manager format
+    // standard password manager format
     #[serde(rename = "Title")]
     title: Option<String>,
     #[serde(rename = "Username")]
@@ -122,7 +133,7 @@ pub struct CsvRow {
     #[serde(rename = "Tags")]
     tags: Option<String>,
     
-    // Browser export format (Firefox/Chrome)
+    // browser export format (firefox/chrome)
     #[serde(rename = "url")]
     url_browser: Option<String>,
     #[serde(rename = "username")]
@@ -202,6 +213,9 @@ fn main() {
             delete_tag,
             import_csv,
             get_all_vault_items,
+            get_theme,
+            set_theme,
+            update_item,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -448,6 +462,53 @@ async fn add_folder(args: AddFolderArgs, state: State<'_, VaultState>) -> Result
 }
 
 #[tauri::command]
+async fn update_item(args: UpdateItemArgs, state: State<'_, VaultState>) -> Result<()> {
+    info!("Updating item: {}", args.name);
+
+    if args.name.trim().is_empty() {
+        warn!("Attempted to update item with empty name.");
+        return Err(Error::InvalidInput("Item name cannot be empty".into()));
+    }
+
+    let storage = state.storage.lock().unwrap();
+    let crypto = state.crypto.lock().unwrap();
+
+    if !crypto.is_unlocked() {
+        error!("Vault is locked, cannot update item.");
+        return Err(Error::VaultLocked);
+    }
+
+    // get the existing item to preserve its data_path
+    let existing_item = storage.get_item(&args.id, &crypto)?.ok_or_else(|| Error::ItemNotFound(args.id.clone()))?;
+    
+    let now = Utc::now();
+    let item_type = args.item_type.clone(); // clone it so we can use it later
+    let item = VaultItem {
+        id: args.id,
+        parent_id: args.parent_id,
+        name: args.name,
+        data_path: existing_item.data_path.clone(), // keep the same data_path
+        item_type: args.item_type,
+        folder_type: existing_item.folder_type, // preserve folder_type
+        tags: args.tags,
+        created_at: existing_item.created_at, // preserve creation date
+        updated_at: now,
+    };
+
+    // update the encrypted content if it's a text item
+    if item_type == "text" || item_type == "key" || item_type == "text/plain" {
+        let encrypted_content = crypto.encrypt(args.content.as_bytes())?;
+        storage.write_encrypted_file(&encrypted_content, &existing_item.data_path)?;
+    }
+
+    // update the item metadata
+    storage.update_item_fields(&item, &crypto)?;
+    
+    info!("Item '{}' updated successfully.", item.name);
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_item_content(id: String, state: State<'_, VaultState>) -> Result<Vec<u8>> {
     let storage = state.storage.lock().unwrap();
     let crypto = state.crypto.lock().unwrap();
@@ -609,33 +670,27 @@ async fn export_encrypted_vault(state: State<'_, VaultState>) -> Result<Vec<u8>>
 async fn delete_vault(args: DeleteVaultArgs, app_handle: AppHandle<Wry>, state: State<'_, VaultState>) -> Result<()> {
     info!("Starting vault deletion process.");
     
-    {
-        let storage = state.storage.lock().unwrap();
-        let salt = storage.get_salt()?;
-        let strength = storage.get_key_derivation_strength()?;
-        let temp_crypto = Crypto::new();
-        let verification_token = storage.get_verification_token()?;
+    let storage = state.storage.lock().unwrap();
+    let salt = storage.get_salt()?;
+    let strength = storage.get_key_derivation_strength()?;
+    let temp_crypto = Crypto::new();
+    let verification_token = storage.get_verification_token()?;
 
-        let key = temp_crypto.derive_key(&args.master_key, &salt, strength)?;
-        let mut checker_crypto = Crypto::new();
-        checker_crypto.unlock(&key)?;
-        
-        if checker_crypto.decrypt(&verification_token).is_err() {
-            return Err(Error::InvalidMasterKey);
-        }
+    let key = temp_crypto.derive_key(&args.master_key, &salt, strength)?;
+    let mut checker_crypto = Crypto::new();
+    checker_crypto.unlock(&key)?;
+    
+    if checker_crypto.decrypt(&verification_token).is_err() {
+        return Err(Error::InvalidMasterKey);
     }
 
-    let vault_path = app_handle.path().app_data_dir().unwrap().join("vault");
+    // reset the storage state (clear database and data files)
+    storage.reset()?;
     
-    if vault_path.exists() {
-        let mut crypto = state.crypto.lock().unwrap();
-        crypto.lock();
-        let _storage_lock = state.storage.lock().unwrap(); 
-        
-        fs::remove_dir_all(&vault_path)?;
-        info!("Vault directory deleted successfully.");
-    }
+    // lock the crypto state (security first!)
+    state.crypto.lock().unwrap().lock();
     
+    info!("Vault deleted and state reset successfully.");
     Ok(())
 }
 
@@ -653,7 +708,7 @@ async fn get_all_tags(state: State<'_, VaultState>) -> Result<Vec<String>> {
         .collect();
     
     tags.sort_unstable();
-    tags.dedup(); // Remove duplicates
+    tags.dedup(); // remove duplicates (no tag twins allowed!)
     
     Ok(tags)
 }
@@ -728,7 +783,7 @@ async fn import_csv(args: CsvImportArgs, state: State<'_, VaultState>) -> Result
             Ok(row) => {
                 let row: CsvRow = row;
                 
-                // Extract data from either format
+                // extract data from either format (csv is flexible like that)
                 let title = row.account
                     .or(row.title)
                     .or(row.name_browser)
@@ -754,13 +809,13 @@ async fn import_csv(args: CsvImportArgs, state: State<'_, VaultState>) -> Result
                 
                 info!("Processing row {}: title = {:?}, username = {:?}", row_count, title, username);
                 
-                // Skip rows without a title
+                // skip rows without a title because they're fucking stupid and useless
                 if title.is_none() || title.as_ref().unwrap().trim().is_empty() {
                     info!("Skipping row {} - no title", row_count);
                     continue;
                 }
 
-                // Create the content for the password item
+                // create the content for the password item (let's organize this mess)
                 let mut content = String::new();
                 if let Some(username_val) = &username {
                     if !username_val.trim().is_empty() {
@@ -785,13 +840,13 @@ async fn import_csv(args: CsvImportArgs, state: State<'_, VaultState>) -> Result
                 let content = content.trim_end().to_string();
                 info!("Created content for row {}: '{}' (length: {})", row_count, content, content.len());
                 
-                // Skip rows with no content
+                // skip rows with no content
                 if content.trim().is_empty() {
                     info!("Skipping row {} - no content to store", row_count);
                     continue;
                 }
                 
-                // Parse tags
+                // parse tags
                 let tags_vec: Vec<String> = tags
                     .unwrap_or_default()
                     .split(',')
@@ -801,13 +856,13 @@ async fn import_csv(args: CsvImportArgs, state: State<'_, VaultState>) -> Result
 
                 info!("Parsed tags for row {}: {:?}", row_count, tags_vec);
 
-                // Create the vault item
+                // create the vault item
                 let item = VaultItem {
                     id: Uuid::new_v4().to_string(),
                     parent_id: parent_id.clone(),
                     name: title.unwrap().trim().to_string(),
                     data_path: "".to_string(),
-                    item_type: "text/plain".to_string(),
+                    item_type: "key".to_string(),
                     folder_type: None,
                     tags: tags_vec,
                     created_at: Utc::now(),
@@ -816,18 +871,18 @@ async fn import_csv(args: CsvImportArgs, state: State<'_, VaultState>) -> Result
 
                 info!("Created vault item for row {}: {} (id: {})", row_count, item.name, item.id);
 
-                // Add the item to storage
+                // add the item to storage
                 storage.add_item(&item, &crypto)?;
                 info!("Added item to storage for row {}", row_count);
                 
-                // Write the content to a file
+                // write the content to a file
                 let file_name = format!("{}.txt", item.id);
                 info!("Writing content to file: {} (content length: {})", file_name, content.len());
                 let encrypted_content = crypto.encrypt(content.as_bytes())?;
                 storage.write_encrypted_file(&encrypted_content, &file_name)?;
                 info!("Successfully wrote encrypted content to file: {}", file_name);
                 
-                // Update the item with the correct data path
+                // update the item with the correct data path
                 let mut updated_item = item.clone();
                 updated_item.data_path = file_name.clone();
                 storage.update_item_fields(&updated_item, &crypto)?;
@@ -855,4 +910,18 @@ async fn get_all_vault_items(state: State<'_, VaultState>) -> Result<Vec<VaultIt
         return Err(Error::VaultLocked);
     }
     storage.get_all_items_recursive(&crypto)
+}
+
+#[tauri::command]
+async fn get_theme(state: State<'_, VaultState>) -> Result<String> {
+    let storage = state.storage.lock().unwrap();
+    let theme = storage.get_theme()?;
+    Ok(theme)
+}
+
+#[tauri::command]
+async fn set_theme(theme: String, state: State<'_, VaultState>) -> Result<()> {
+    let storage = state.storage.lock().unwrap();
+    storage.set_theme(&theme)?;
+    Ok(())
 }

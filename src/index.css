@@ -6,11 +6,37 @@
   color-scheme: dark;
 }
 
+/* Light Theme (default) */
 body {
-  @apply bg-gray-950 text-gray-100;
+  @apply bg-gray-50 text-gray-900;
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark Theme */
+.dark body {
+  @apply bg-gray-950 text-gray-100;
+}
+
+/* Ocean Theme */
+.ocean body {
+  @apply bg-blue-950 text-blue-100;
+}
+
+/* Forest Theme */
+.forest body {
+  @apply bg-emerald-950 text-emerald-100;
+}
+
+/* Sunset Theme */
+.sunset body {
+  @apply bg-orange-950 text-orange-100;
+}
+
+/* Purple Theme */
+.purple body {
+  @apply bg-purple-950 text-purple-100;
 }
 
 #root {
@@ -25,14 +51,33 @@ body {
   @apply bg-transparent;
 }
 
+/* Light theme scrollbar */
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-700 rounded-full;
+  @apply bg-gray-300 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}
+
+/* Dark themes scrollbar */
+.dark ::-webkit-scrollbar-thumb,
+.ocean ::-webkit-scrollbar-thumb,
+.forest ::-webkit-scrollbar-thumb,
+.sunset ::-webkit-scrollbar-thumb,
+.purple ::-webkit-scrollbar-thumb {
+  @apply bg-gray-700;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover,
+.ocean ::-webkit-scrollbar-thumb:hover,
+.forest ::-webkit-scrollbar-thumb:hover,
+.sunset ::-webkit-scrollbar-thumb:hover,
+.purple ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-600;
 }
 
+/* Light theme inputs */
 input[type="text"],
 input[type="password"],
 input[type="email"],
@@ -42,7 +87,57 @@ input[type="url"],
 input[type="search"],
 textarea,
 select {
-  @apply bg-gray-800 border border-gray-700/50 text-white rounded-md shadow-sm;
+  @apply bg-white border border-gray-300 text-gray-900 rounded-md shadow-sm;
+  @apply focus:border-blue-500 focus:ring-0;
+}
+
+/* Dark themes inputs */
+.dark input[type="text"],
+.dark input[type="password"],
+.dark input[type="email"],
+.dark input[type="number"],
+.dark input[type="tel"],
+.dark input[type="url"],
+.dark input[type="search"],
+.dark textarea,
+.dark select,
+.ocean input[type="text"],
+.ocean input[type="password"],
+.ocean input[type="email"],
+.ocean input[type="number"],
+.ocean input[type="tel"],
+.ocean input[type="url"],
+.ocean input[type="search"],
+.ocean textarea,
+.ocean select,
+.forest input[type="text"],
+.forest input[type="password"],
+.forest input[type="email"],
+.forest input[type="number"],
+.forest input[type="tel"],
+.forest input[type="url"],
+.forest input[type="search"],
+.forest textarea,
+.forest select,
+.sunset input[type="text"],
+.sunset input[type="password"],
+.sunset input[type="email"],
+.sunset input[type="number"],
+.sunset input[type="tel"],
+.sunset input[type="url"],
+.sunset input[type="search"],
+.sunset textarea,
+.sunset select,
+.purple input[type="text"],
+.purple input[type="password"],
+.purple input[type="email"],
+.purple input[type="number"],
+.purple input[type="tel"],
+.purple input[type="url"],
+.purple input[type="search"],
+.purple textarea,
+.purple select {
+  @apply bg-gray-800 border border-gray-700/50 text-white;
   @apply focus:border-indigo-500 focus:ring-0;
 }
 
@@ -69,20 +164,41 @@ button {
 }
 
 * {
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
+/* Light theme focus */
 *:focus-visible {
-  @apply outline-none ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-gray-800;
+  @apply outline-none ring-2 ring-blue-500 ring-offset-2;
 }
 
+/* Dark themes focus */
+.dark *:focus-visible,
+.ocean *:focus-visible,
+.forest *:focus-visible,
+.sunset *:focus-visible,
+.purple *:focus-visible {
+  @apply outline-none ring-2 ring-indigo-500 ring-offset-2 ring-offset-gray-800;
+}
+
+/* Light theme selection */
 ::selection {
+  @apply bg-blue-500 text-white;
+}
+
+/* Dark themes selection */
+.dark ::selection,
+.ocean ::selection,
+.forest ::selection,
+.sunset ::selection,
+.purple ::selection {
   @apply bg-indigo-500 text-white;
 }
 
 button {
   @apply transition-all duration-200;
 }
+
 .hover-card {
   @apply transition-all duration-200 hover:shadow-lg hover:scale-[1.02];
 }
@@ -91,6 +207,211 @@ input, textarea {
   @apply transition-all duration-200;
 }
 
-.dark *:focus-visible {
-  @apply ring-indigo-400;
+/* Theme-specific accent colors */
+.dark .accent-color {
+  @apply text-indigo-400;
 }
+
+.ocean .accent-color {
+  @apply text-blue-400;
+}
+
+.forest .accent-color {
+  @apply text-emerald-400;
+}
+
+.sunset .accent-color {
+  @apply text-orange-400;
+}
+
+.purple .accent-color {
+  @apply text-purple-400;
+}
+
+/* Theme-specific border colors */
+.dark .theme-border {
+  @apply border-gray-700;
+}
+
+.ocean .theme-border {
+  @apply border-blue-900;
+}
+
+.forest .theme-border {
+  @apply border-emerald-900;
+}
+
+.sunset .theme-border {
+  @apply border-orange-900;
+}
+
+.purple .theme-border {
+  @apply border-purple-900;
+}
+
+/* Theme-specific background colors */
+.dark .theme-bg {
+  @apply bg-gray-800;
+}
+
+.ocean .theme-bg {
+  @apply bg-blue-900;
+}
+
+.forest .theme-bg {
+  @apply bg-emerald-900;
+}
+
+.sunset .theme-bg {
+  @apply bg-orange-900;
+}
+
+.purple .theme-bg {
+  @apply bg-purple-900;
+}
+
+/* custom range input styles for audio player */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-track {
+  background: #d1d5db;
+  height: 8px;
+  border-radius: 4px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #ec4899;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: #db2777;
+  transform: scale(1.1);
+}
+
+/* dark mode styles */
+.dark input[type="range"]::-webkit-slider-track {
+  background: #4b5563;
+}
+
+.dark input[type="range"]::-webkit-slider-thumb {
+  background: #ec4899;
+}
+
+.dark input[type="range"]::-webkit-slider-thumb:hover {
+  background: #db2777;
+}
+
+/* firefox styles */
+input[type="range"]::-moz-range-track {
+  background: #d1d5db;
+  height: 8px;
+  border-radius: 4px;
+  border: none;
+}
+
+input[type="range"]::-moz-range-thumb {
+  background: #ec4899;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  background: #db2777;
+}
+
+.dark input[type="range"]::-moz-range-track {
+  background: #4b5563;
+}
+
+.dark input[type="range"]::-moz-range-thumb {
+  background: #ec4899;
+}
+
+.dark input[type="range"]::-moz-range-thumb:hover {
+  background: #db2777;
+}
+
+/* video player specific styles */
+.video-player-controls {
+  transition: opacity 0.3s ease-in-out;
+}
+
+.video-player-controls:hover {
+  opacity: 1 !important;
+}
+
+/* custom video scrub bar styles */
+.video-scrub-bar {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.video-scrub-bar::-webkit-slider-track {
+  background: rgba(255, 255, 255, 0.3);
+  height: 6px;
+  border-radius: 3px;
+}
+
+.video-scrub-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #6366f1;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.video-scrub-bar::-webkit-slider-thumb:hover {
+  background: #4f46e5;
+  transform: scale(1.1);
+}
+
+/* video volume slider */
+.video-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.video-volume-slider::-webkit-slider-track {
+  background: rgba(255, 255, 255, 0.3);
+  height: 4px;
+  border-radius: 2px;
+}
+
+.video-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #6366f1;
+  height: 14px;
+  width: 14px;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.video-volume-slider::-webkit-slider-thumb:hover {
+  background: #4f46e5;
+  transform: scale(1.1);
+} 

@@ -2,6 +2,9 @@ use log::{info, error};
 use crate::error::Error;
 use crate::storage::VaultItem;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use std::fs::File;
+use std::io::BufReader;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -24,27 +27,32 @@ impl Importer {
     pub fn import_csv(file_path: &str) -> Result<(Vec<ImportedItem>, ImportResult)> {
         info!("Attempting to open CSV file: {}", file_path);
         
-        // Convert the path to a PathBuf and normalize it
-        let path = std::path::Path::new(file_path);
+        // convert the path to a pathbuf and normalize it
+        let path = PathBuf::from(file_path);
         info!("File path exists: {}", path.exists());
         info!("File path is absolute: {}", path.is_absolute());
         info!("File path components: {:?}", path.components().collect::<Vec<_>>());
         
-        // Get the canonical path (resolves any .. or . in the path)
+        // get the canonical path (resolves any .. or . in the path)
         let canonical_path = path.canonicalize()?;
         info!("Canonical path: {}", canonical_path.display());
         
-        // Open and read the file
-        let file = std::fs::File::open(&canonical_path)?;
-        let mut rdr = csv::Reader::from_reader(file);
+        // open and read the file
+        let file = File::open(&canonical_path)?;
+        let reader = BufReader::new(file);
         
         let mut imported_items = Vec::new();
         let mut success_count = 0;
         let mut error_count = 0;
         let mut errors = Vec::new();
         
-        // Read the CSV records
-        for result in rdr.records() {
+        // read the csv records
+        let mut csv_reader = csv::Reader::from_reader(reader);
+        
+        // this is a placeholder implementation - you'll need to implement the actual csv parsing logic
+        // based on your csv format and vaultitem structure
+        
+        for result in csv_reader.records() {
             match result {
                 Ok(record) => {
                     match parse_csv_record(&record) {

@@ -20,6 +20,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { AboutModal } from '../shared/AboutModal';
 import { AddFolderModal } from './AddFolderModal';
 import { CsvImportModal } from './CsvImportModal';
+import { useTheme } from '../../hooks/useTheme';
 
 interface SidebarProps {
   selectedType: string;
@@ -39,6 +40,7 @@ const categories = [
 export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFolderId }: SidebarProps) {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { theme, themeVersion } = useTheme();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
   const [isCsvImportModalOpen, setIsCsvImportModalOpen] = useState(false);
@@ -60,6 +62,61 @@ export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFold
     }
   };
 
+  const getSidebarBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gradient-to-b from-gray-100 to-gray-200';
+      case 'dark':
+        return 'bg-gradient-to-b from-gray-900 to-black';
+      default:
+        return 'bg-gradient-to-b from-gray-900 to-black';
+    }
+  };
+
+  const getBorderColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'border-gray-300';
+      case 'dark':
+        return 'border-gray-700/30';
+      default:
+        return 'border-gray-700/30';
+    }
+  };
+
+  const getTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-900';
+      case 'dark':
+        return 'text-white';
+      default:
+        return 'text-white';
+    }
+  };
+
+  const getSecondaryTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-600';
+      case 'dark':
+        return 'text-gray-500';
+      default:
+        return 'text-gray-500';
+    }
+  };
+
+  const getActiveTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-800';
+      case 'dark':
+        return 'text-white';
+      default:
+        return 'text-white';
+    }
+  };
+
   const NavButton = ({ id, name, icon: Icon }: { id: string; name: string; icon: React.ElementType }) => {
     const isActive = selectedType === id;
     return (
@@ -67,13 +124,13 @@ export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFold
         onClick={() => onTypeSelect(id)}
         className={`relative w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg font-medium transition-all duration-200 text-sm group ${
           isActive
-            ? 'bg-gradient-to-r from-indigo-500/10 via-indigo-500/20 to-transparent text-white'
-            : 'text-gray-400 hover:text-white hover:bg-white/5'
+            ? `bg-gradient-to-r from-indigo-500/10 via-indigo-500/20 to-transparent ${getActiveTextColor()}`
+            : `${getSecondaryTextColor()} hover:${getTextColor()} hover:bg-white/5`
         }`}
       >
         <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-2/3 w-1 rounded-r-full bg-indigo-400 transition-all duration-200 ease-in-out ${isActive ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'}`}></span>
         <Icon className={`h-5 w-5 flex-shrink-0 transition-colors duration-200 ${
-            isActive ? 'text-indigo-300' : 'text-gray-500 group-hover:text-gray-300'
+            isActive ? 'text-indigo-300' : `${getSecondaryTextColor()} group-hover:text-gray-300`
         }`} />
         <span>{name}</span>
       </button>
@@ -81,19 +138,19 @@ export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFold
   };
 
   return (
-    <div className="w-64 h-full flex flex-col bg-gradient-to-b from-gray-900 to-black">
+    <div key={themeVersion} className={`w-64 h-full flex flex-col ${getSidebarBackground()}`}>
       {/* Header Section */}
-      <div className="flex flex-col items-center justify-center h-20 px-4 border-b border-gray-700/30">
-        <h1 className="text-2xl font-bold text-white">
+      <div className={`flex flex-col items-center justify-center h-20 px-4 border-b ${getBorderColor()}`}>
+        <h1 className={`text-2xl font-bold ${getTextColor()}`}>
           Fetch
         </h1>
         {appVersion && (
             <div className="flex items-center space-x-2 mt-1">
-                <p className="text-xs text-gray-500">v{appVersion}</p>
+                <p className={`text-xs ${getSecondaryTextColor()}`}>v{appVersion}</p>
                 <button 
                   onClick={() => setIsAboutModalOpen(true)} 
                   title="About Fetch" 
-                  className="text-gray-500 hover:text-indigo-400 transition-colors duration-200"
+                  className={`${getSecondaryTextColor()} hover:text-indigo-400 transition-colors duration-200`}
                 >
                     <InformationCircleIcon className="h-4 w-4" />
                 </button>
@@ -108,7 +165,7 @@ export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFold
         </div>
 
         <div>
-          <div className="px-2 mb-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <div className={`px-2 mb-3 text-xs font-semibold ${getSecondaryTextColor()} uppercase tracking-wider`}>
             Categories
           </div>
           <div className="space-y-1">
@@ -120,7 +177,7 @@ export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFold
       </div>
 
       {/* Bottom Section */}
-      <div className="p-4 border-t border-gray-600/50">
+      <div className={`p-4 border-t ${getBorderColor()}`}>
         <div className="space-y-2">
             <div className="flex items-center space-x-2">
                 <button
@@ -149,7 +206,7 @@ export function Sidebar({ selectedType, onTypeSelect, onItemsChange, currentFold
                 <button
                     onClick={() => navigate('/settings')}
                     title="Settings"
-                    className="flex-1 flex items-center justify-center px-4 py-3 text-gray-400 bg-gray-800/50 hover:bg-gray-800/70 hover:text-gray-200 rounded-lg font-medium transition-all duration-200 border border-gray-700/50"
+                    className={`flex-1 flex items-center justify-center px-4 py-3 ${getSecondaryTextColor()} bg-gray-800/50 hover:bg-gray-800/70 hover:text-gray-200 rounded-lg font-medium transition-all duration-200 border border-gray-700/50`}
                 >
                     <Cog6ToothIcon className="h-5 w-5" />
                 </button>

@@ -11,10 +11,13 @@ import {
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../hooks/useAuth';
 import { typeIcons } from '../../utils/constants';
-import { getExtensionFromMime } from '../../utils/helpers';
+import { getExtensionFromMime, cleanUrlForDisplay } from '../../utils/helpers';
 import { VaultItem } from '../../types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useTheme } from '../../hooks/useTheme';
+import { AudioPlayer } from './AudioPlayer';
+import { VideoPlayer } from './VideoPlayer';
 
 interface ItemDetailsModalProps {
   item: VaultItem | null;
@@ -30,6 +33,7 @@ export function ItemDetailsModal({ item, isOpen, onClose: onCloseProp }: ItemDet
   const [masterKey, setMasterKey] = useState('');
 
   const { login, error: authError, clearError: clearAuthError } = useAuth();
+  const { theme, themeVersion } = useTheme();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const resetAndClose = useCallback(() => {
@@ -108,6 +112,72 @@ export function ItemDetailsModal({ item, isOpen, onClose: onCloseProp }: ItemDet
     }
   };
 
+  const getModalBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-white/90 backdrop-blur-sm border-gray-300';
+      case 'dark':
+        return 'bg-gray-800/50 backdrop-blur-sm border-gray-700/50';
+      default:
+        return 'bg-gray-800/50 backdrop-blur-sm border-gray-700/50';
+    }
+  };
+
+  const getTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-900';
+      case 'dark':
+        return 'text-white';
+      default:
+        return 'text-white';
+    }
+  };
+
+  const getSecondaryTextColor = () => {
+    switch (theme) {
+      case 'light':
+        return 'text-gray-600';
+      case 'dark':
+        return 'text-gray-400';
+      default:
+        return 'text-gray-400';
+    }
+  };
+
+  const getInputBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gray-200 border-gray-400 text-gray-900 placeholder-gray-600';
+      case 'dark':
+        return 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400';
+      default:
+        return 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400';
+    }
+  };
+
+  const getButtonBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gray-200 hover:bg-gray-300 text-gray-700';
+      case 'dark':
+        return 'bg-gray-700/50 hover:bg-gray-700 text-gray-400 hover:text-white';
+      default:
+        return 'bg-gray-700/50 hover:bg-gray-700 text-gray-400 hover:text-white';
+    }
+  };
+
+  const getContentBackground = () => {
+    switch (theme) {
+      case 'light':
+        return 'bg-gray-200 text-gray-800';
+      case 'dark':
+        return 'bg-gray-900/50 text-gray-300';
+      default:
+        return 'bg-gray-900/50 text-gray-300';
+    }
+  };
+
   const renderLockedView = () => (
     <div className="py-8 text-center">
       <button
@@ -122,21 +192,21 @@ export function ItemDetailsModal({ item, isOpen, onClose: onCloseProp }: ItemDet
 
   const renderConfirmingView = () => (
     <div className="py-8 text-center">
-      <h3 className="text-lg font-medium leading-6 text-white mb-2">Confirm Access</h3>
-      <p className="text-sm text-gray-400 mb-4">Please enter your master key to view this item.</p>
+      <h3 className={`text-lg font-medium leading-6 ${getTextColor()} mb-2`}>Confirm Access</h3>
+      <p className={`text-sm ${getSecondaryTextColor()} mb-4`}>Please enter your master key to view this item.</p>
       <form onSubmit={handleConfirmAction} className="space-y-4 max-w-sm mx-auto">
         <input
           ref={inputRef}
           type="password"
           value={masterKey}
           onChange={(e) => setMasterKey(e.target.value)}
-          className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className={`w-full px-3 py-2 ${getInputBackground()} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
           placeholder="Enter your master key"
           required
         />
         {authError && <p className="text-sm text-red-400">Invalid master key. Please try again.</p>}
         <div className="flex justify-center space-x-3">
-          <button type="button" onClick={() => setViewMode('LOCKED')} className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-gray-700/50 rounded-lg">
+          <button type="button" onClick={() => setViewMode('LOCKED')} className={`px-4 py-2 text-sm font-medium ${getButtonBackground()} rounded-lg`}>
             Cancel
           </button>
           <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
@@ -156,7 +226,7 @@ export function ItemDetailsModal({ item, isOpen, onClose: onCloseProp }: ItemDet
   const renderContentView = () => {
     if (item?.type === 'image' && content) {
       return (
-        <div className="flex items-center justify-center p-4 bg-gray-900/50 rounded-lg">
+        <div className={`flex items-center justify-center p-4 ${getContentBackground()} rounded-lg`}>
           <img src={content} alt={item?.name} className="max-w-full max-h-[60vh] rounded-lg object-contain" />
         </div>
       );
@@ -164,13 +234,29 @@ export function ItemDetailsModal({ item, isOpen, onClose: onCloseProp }: ItemDet
 
     if ((item?.type === 'text' || item?.type === 'key') && content) {
       return (
-        <div className="relative group bg-gray-900/50 rounded-xl p-4 text-sm text-gray-300 font-mono overflow-x-auto max-h-[60vh] prose prose-invert"> {/* Added prose classes for styling */}
+        <div className={`relative group ${getContentBackground()} rounded-xl p-4 text-sm font-mono overflow-x-auto max-h-[60vh] prose prose-invert`}>
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         </div>
       );
     }
 
-    return <div className="text-center text-gray-400 p-8">No preview available for this file type.</div>
+    if (item?.type === 'audio' && content) {
+      return (
+        <div className={`relative group ${getContentBackground()} rounded-xl p-4 text-sm font-mono overflow-x-auto max-h-[60vh]`}>
+          <AudioPlayer audioUrl={content} fileName={item.name} />
+        </div>
+      );
+    }
+
+    if (item?.type === 'video' && content) {
+      return (
+        <div className={`relative group ${getContentBackground()} rounded-xl p-4 text-sm font-mono overflow-x-auto max-h-[60vh]`}>
+          <VideoPlayer videoUrl={content} fileName={item.name} />
+        </div>
+      );
+    }
+
+    return <div className={`text-center ${getSecondaryTextColor()} p-8`}>No preview available for this file type.</div>
   };
 
   const renderModalContent = () => {
@@ -187,6 +273,7 @@ export function ItemDetailsModal({ item, isOpen, onClose: onCloseProp }: ItemDet
   if (!item) return null;
 
   const Icon = typeIcons[item.type as keyof typeof typeIcons] || FolderIcon;
+  const displayName = cleanUrlForDisplay(item.name);
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -197,17 +284,17 @@ export function ItemDetailsModal({ item, isOpen, onClose: onCloseProp }: ItemDet
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4">
             <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
-              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 p-6 shadow-xl transition-all">
+              <Dialog.Panel key={themeVersion} className={`w-full max-w-2xl transform overflow-hidden rounded-2xl ${getModalBackground()} p-6 shadow-xl transition-all`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-3">
                     <Icon className="h-6 w-6 text-indigo-400" />
-                    <Dialog.Title className="text-lg font-medium text-white">{item.name}</Dialog.Title>
+                    <Dialog.Title className={`text-lg font-medium ${getTextColor()}`}>{displayName}</Dialog.Title>
                   </div>
-                  <button onClick={resetAndClose} className="text-gray-400 hover:text-white"><XMarkIcon className="h-5 w-5" /></button>
+                  <button onClick={resetAndClose} className={`${getSecondaryTextColor()} hover:text-white`}><XMarkIcon className="h-5 w-5" /></button>
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-2 text-sm text-gray-400">
+                    <div className={`flex items-center space-x-2 text-sm ${getSecondaryTextColor()}`}>
                       <ClockIcon className="h-4 w-4" />
                       <span>Created: {new Date(item.created_at).toLocaleString()}</span>
                     </div>
@@ -224,7 +311,7 @@ export function ItemDetailsModal({ item, isOpen, onClose: onCloseProp }: ItemDet
                     <button
                       onClick={handleDownload}
                       disabled={viewMode !== 'CONTENT_VISIBLE'}
-                      className="flex items-center space-x-2 px-3 py-1.5 bg-gray-700/50 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`flex items-center space-x-2 px-3 py-1.5 ${getButtonBackground()} rounded-lg disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       <ArrowDownTrayIcon className="h-4 w-4" />
                       <span>Download</span>

@@ -63,10 +63,10 @@ export function ImportModal({ isOpen, onClose, onImportComplete }: ImportModalPr
         console.log(`Successfully imported ${result.success_count} items`);
         setError(null);
         onImportComplete();
-        // Close the modal after a short delay to show the success message
+        // close the modal after a short delay to show the success message
         setTimeout(() => {
           onClose();
-        }, 1500);
+        }, 2000);
       } else {
         const errorMessage = result.errors.length > 0 
           ? result.errors.join(', ') 
@@ -74,27 +74,15 @@ export function ImportModal({ isOpen, onClose, onImportComplete }: ImportModalPr
         setError(`Import failed: ${errorMessage}`);
       }
     } catch (err: any) {
-      console.error('Import error:', err);
+      console.error('Import failed:', err);
       
-      // Handle string errors (our new format)
+      // handle string errors (our new format)
       if (typeof err === 'string') {
-        setError(`Import failed: ${err}`);
-        return;
+        setError(err);
+      } else {
+        // handle error objects
+        setError(err.message || 'Import failed');
       }
-      
-      // Handle error objects
-      let errorMessage = 'Unknown error occurred';
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      } else if (typeof err === 'object' && err !== null) {
-        if ('message' in err) {
-          errorMessage = err.message;
-        } else {
-          errorMessage = JSON.stringify(err);
-        }
-      }
-      
-      setError(`Import failed: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }

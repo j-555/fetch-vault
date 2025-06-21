@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Dialog, Transition } from '@headlessui/react';
 import { ExclamationTriangleIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { useTheme } from '../../../hooks/useTheme';
 
 
 interface EditTagModalProps {
@@ -15,6 +16,7 @@ interface EditTagModalProps {
 
 const EditTagModal = ({ isOpen, onClose, currentTag, onSave, isLoading, error }: EditTagModalProps) => {
     const [newTagName, setNewTagName] = useState(currentTag);
+    const { theme } = useTheme();
 
     useEffect(() => {
         setNewTagName(currentTag);
@@ -28,7 +30,60 @@ const EditTagModal = ({ isOpen, onClose, currentTag, onSave, isLoading, error }:
         onClose();
     };
 
-    const inputClasses = "w-full px-3 py-2 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500";
+    const getModalBackground = () => {
+        switch (theme) {
+            case 'light':
+                return 'bg-white/90 backdrop-blur-sm border-gray-300';
+            case 'dark':
+                return 'bg-gray-800/50 backdrop-blur-sm border-gray-700/50';
+            default:
+                return 'bg-gray-800/50 backdrop-blur-sm border-gray-700/50';
+        }
+    };
+
+    const getTextColor = () => {
+        switch (theme) {
+            case 'light':
+                return 'text-gray-900';
+            case 'dark':
+                return 'text-white';
+            default:
+                return 'text-white';
+        }
+    };
+
+    const getSecondaryTextColor = () => {
+        switch (theme) {
+            case 'light':
+                return 'text-gray-600';
+            case 'dark':
+                return 'text-gray-300';
+            default:
+                return 'text-gray-300';
+        }
+    };
+
+    const getInputBackground = () => {
+        switch (theme) {
+            case 'light':
+                return 'bg-gray-200/50 border-gray-400/50 text-gray-900 placeholder-gray-600';
+            case 'dark':
+                return 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400';
+            default:
+                return 'bg-gray-700/50 border-gray-600/50 text-white placeholder-gray-400';
+        }
+    };
+
+    const getButtonBackground = () => {
+        switch (theme) {
+            case 'light':
+                return 'text-gray-600 hover:text-gray-900 bg-gray-200/50 hover:bg-gray-300';
+            case 'dark':
+                return 'text-gray-400 hover:text-white bg-gray-700/50 hover:bg-gray-700';
+            default:
+                return 'text-gray-400 hover:text-white bg-gray-700/50 hover:bg-gray-700';
+        }
+    };
 
     return (
         <Transition appear show={isOpen} as={Fragment}>
@@ -56,19 +111,19 @@ const EditTagModal = ({ isOpen, onClose, currentTag, onSave, isLoading, error }:
                             leaveFrom="opacity-100 scale-100"
                             leaveTo="opacity-0 scale-95"
                         >
-                            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 p-6 text-left align-middle shadow-xl transition-all">
-                                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-white mb-4">
+                            <Dialog.Panel className={`w-full max-w-md transform overflow-hidden rounded-2xl ${getModalBackground()} p-6 text-left align-middle shadow-xl transition-all`}>
+                                <Dialog.Title as="h3" className={`text-lg font-medium leading-6 ${getTextColor()} mb-4`}>
                                     Edit Tag
                                 </Dialog.Title>
                                 <form onSubmit={handleSubmit} className="space-y-4">
                                     <div>
-                                        <label htmlFor="new-tag-name" className="block text-sm font-medium text-gray-300 mb-1">New Tag Name</label>
+                                        <label htmlFor="new-tag-name" className={`block text-sm font-medium ${getSecondaryTextColor()} mb-1`}>New Tag Name</label>
                                         <input
                                             type="text"
                                             id="new-tag-name"
                                             value={newTagName}
                                             onChange={(e) => setNewTagName(e.target.value)}
-                                            className={inputClasses}
+                                            className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 ${getInputBackground()}`}
                                             required
                                         />
                                     </div>
@@ -77,7 +132,7 @@ const EditTagModal = ({ isOpen, onClose, currentTag, onSave, isLoading, error }:
                                         <button
                                             type="button"
                                             onClick={onClose}
-                                            className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white bg-gray-700/50 rounded-lg hover:bg-gray-700"
+                                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${getButtonBackground()}`}
                                         >
                                             Cancel
                                         </button>
@@ -109,9 +164,55 @@ interface DeleteTagConfirmationModalProps {
 }
 
 const DeleteTagConfirmationModal = ({ isOpen, onClose, onConfirm, tagToDelete, isLoading, error }: DeleteTagConfirmationModalProps) => {
+    const { theme } = useTheme();
+
     const handleSubmit = async () => {
         await onConfirm(tagToDelete);
         onClose();
+    };
+
+    const getModalBackground = () => {
+        switch (theme) {
+            case 'light':
+                return 'bg-white/90 backdrop-blur-sm border-red-300';
+            case 'dark':
+                return 'bg-gray-800/50 backdrop-blur-sm border-red-700/50';
+            default:
+                return 'bg-gray-800/50 backdrop-blur-sm border-red-700/50';
+        }
+    };
+
+    const getTextColor = () => {
+        switch (theme) {
+            case 'light':
+                return 'text-gray-900';
+            case 'dark':
+                return 'text-white';
+            default:
+                return 'text-white';
+        }
+    };
+
+    const getSecondaryTextColor = () => {
+        switch (theme) {
+            case 'light':
+                return 'text-gray-600';
+            case 'dark':
+                return 'text-gray-400';
+            default:
+                return 'text-gray-400';
+        }
+    };
+
+    const getButtonBackground = () => {
+        switch (theme) {
+            case 'light':
+                return 'border-gray-400 bg-gray-200/50 hover:bg-gray-300';
+            case 'dark':
+                return 'border-gray-600 bg-gray-700/50 hover:bg-gray-700';
+            default:
+                return 'border-gray-600 bg-gray-700/50 hover:bg-gray-700';
+        }
     };
 
     return (
@@ -140,17 +241,17 @@ const DeleteTagConfirmationModal = ({ isOpen, onClose, onConfirm, tagToDelete, i
                             leaveFrom="opacity-100 scale-100"
                             leaveTo="opacity-0 scale-95"
                         >
-                            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-gray-800/50 backdrop-blur-sm border border-red-700/50 p-6 text-left align-middle shadow-xl transition-all">
+                            <Dialog.Panel className={`w-full max-w-md transform overflow-hidden rounded-2xl ${getModalBackground()} p-6 text-left align-middle shadow-xl transition-all`}>
                                 <div className="sm:flex sm:items-start">
                                     <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-900/50 sm:mx-0 sm:h-10 sm:w-10">
                                         <ExclamationTriangleIcon className="h-6 w-6 text-red-400" aria-hidden="true" />
                                     </div>
                                     <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                                        <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-white mb-4">
+                                        <Dialog.Title as="h3" className={`text-lg font-medium leading-6 ${getTextColor()} mb-4`}>
                                             Delete Tag ({tagToDelete})
                                         </Dialog.Title>
                                         <div className="mt-2">
-                                            <p className="text-sm text-gray-400">
+                                            <p className={`text-sm ${getSecondaryTextColor()}`}>
                                                 Are you sure you want to delete the tag "{tagToDelete}"? This will remove the tag from all items that use it. This action cannot be undone.
                                             </p>
                                         </div>
@@ -168,7 +269,7 @@ const DeleteTagConfirmationModal = ({ isOpen, onClose, onConfirm, tagToDelete, i
                                     </button>
                                     <button
                                         type="button"
-                                        className="mt-3 inline-flex w-full justify-center rounded-md border border-gray-600 bg-gray-700/50 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 sm:mt-0 sm:w-auto sm:text-sm"
+                                        className={`mt-3 inline-flex w-full justify-center rounded-md border px-4 py-2 text-base font-medium ${getTextColor()} shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800 sm:mt-0 sm:w-auto sm:text-sm ${getButtonBackground()}`}
                                         onClick={onClose}
                                     >
                                         Cancel
@@ -198,6 +299,62 @@ export const TagManagementSettings = () => {
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [isDeleteLoading, setIsDeleteLoading] = useState(false);
 
+    const { theme } = useTheme();
+
+    const getTextColor = () => {
+        switch (theme) {
+            case 'light':
+                return 'text-gray-900';
+            case 'dark':
+                return 'text-white';
+            default:
+                return 'text-white';
+        }
+    };
+
+    const getSecondaryTextColor = () => {
+        switch (theme) {
+            case 'light':
+                return 'text-gray-600';
+            case 'dark':
+                return 'text-gray-300';
+            default:
+                return 'text-gray-300';
+        }
+    };
+
+    const getTertiaryTextColor = () => {
+        switch (theme) {
+            case 'light':
+                return 'text-gray-500';
+            case 'dark':
+                return 'text-gray-500';
+            default:
+                return 'text-gray-500';
+        }
+    };
+
+    const getCardBackground = () => {
+        switch (theme) {
+            case 'light':
+                return 'bg-gray-200/50 border-gray-300/50';
+            case 'dark':
+                return 'bg-gray-800/50 border-gray-700/50';
+            default:
+                return 'bg-gray-800/50 border-gray-700/50';
+        }
+    };
+
+    const getBorderColor = () => {
+        switch (theme) {
+            case 'light':
+                return 'border-gray-300/50';
+            case 'dark':
+                return 'border-gray-700/50';
+            default:
+                return 'border-gray-700/50';
+        }
+    };
 
     const fetchTags = async () => {
         setIsLoading(true);
@@ -261,18 +418,18 @@ export const TagManagementSettings = () => {
 
     return (
         <div className="p-2">
-            <h3 className="text-base font-medium text-white mb-4">Tag Management</h3>
+            <h3 className={`text-base font-medium ${getTextColor()} mb-4`}>Tag Management</h3>
             {isLoading ? (
-                <p className="text-sm text-gray-500">Loading tags...</p>
+                <p className={`text-sm ${getTertiaryTextColor()}`}>Loading tags...</p>
             ) : error ? (
                 <p className="text-sm text-red-400">{error}</p>
             ) : tags.length === 0 ? (
-                <p className="text-sm text-gray-500">No tags found in your vault.</p>
+                <p className={`text-sm ${getTertiaryTextColor()}`}>No tags found in your vault.</p>
             ) : (
                 <div className="space-y-3">
                     {tags.map((tag) => (
-                        <div key={tag} className="flex items-center justify-between bg-gray-800/50 p-3 rounded-lg border border-gray-700/50">
-                            <span className="text-gray-300 text-sm font-medium">{tag}</span>
+                        <div key={tag} className={`flex items-center justify-between ${getCardBackground()} p-3 rounded-lg border`}>
+                            <span className={`${getSecondaryTextColor()} text-sm font-medium`}>{tag}</span>
                             <div className="flex space-x-2">
                                 <button
                                     onClick={() => handleEditClick(tag)}
@@ -293,8 +450,8 @@ export const TagManagementSettings = () => {
                     ))}
                 </div>
             )}
-            <div className="mt-6 border-t border-gray-700/50 pt-4">
-                <p className="text-xs text-gray-500">
+            <div className={`mt-6 border-t ${getBorderColor()} pt-4`}>
+                <p className={`text-xs ${getTertiaryTextColor()}`}>
                     Note: Editing a tag will update its name across all items. Deleting a tag will remove it from all items that use it.
                 </p>
             </div>
